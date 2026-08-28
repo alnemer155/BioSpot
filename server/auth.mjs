@@ -55,14 +55,22 @@ export function parseCookies(req) {
 }
 
 export function setSessionCookie(res, token) {
+  const crossOrigin = Boolean(process.env.CORS_ORIGIN);
+  const attrs = crossOrigin
+    ? "HttpOnly; Path=/; SameSite=None; Secure"
+    : "HttpOnly; Path=/; SameSite=Lax";
   res.setHeader(
     "Set-Cookie",
-    `biospot_session=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSION_DAYS * 24 * 60 * 60}`
+    `biospot_session=${encodeURIComponent(token)}; ${attrs}; Max-Age=${SESSION_DAYS * 24 * 60 * 60}`
   );
 }
 
 export function clearSessionCookie(res) {
-  res.setHeader("Set-Cookie", "biospot_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0");
+  const crossOrigin = Boolean(process.env.CORS_ORIGIN);
+  const attrs = crossOrigin
+    ? "HttpOnly; Path=/; SameSite=None; Secure"
+    : "HttpOnly; Path=/; SameSite=Lax";
+  res.setHeader("Set-Cookie", `biospot_session=; ${attrs}; Max-Age=0`);
 }
 
 export function getUserId(req) {

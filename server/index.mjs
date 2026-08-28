@@ -27,6 +27,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
+// CORS for split deployments (e.g. static frontend on Cloudflare Pages,
+// API on a Node host). Set CORS_ORIGIN to the frontend origin to enable.
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "";
+app.use((req, res, next) => {
+  if (CORS_ORIGIN) {
+    res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+  }
+  next();
+});
+
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

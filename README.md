@@ -39,6 +39,25 @@ Environment variables live in `.env`:
 - `DATABASE_URL` — Neon Postgres connection string
 - `SESSION_SECRET` — secret for signing session tokens
 - `PORT` — API/production port (default 8787)
+- `CORS_ORIGIN` — (optional) frontend origin when the API is hosted separately;
+  also switches session cookies to `SameSite=None; Secure`
+
+## Deploying the frontend to Cloudflare Pages
+
+The Express API cannot run on Cloudflare Pages (static hosting only), so:
+
+1. Host the API (`npm start`) on any Node platform (VPS, Railway, Render, Fly.io…)
+   and set `DATABASE_URL`, `SESSION_SECRET`, and `CORS_ORIGIN=https://<pages-domain>`.
+2. In Cloudflare Pages create a project:
+   - Build command: `npm run build`
+   - Build output directory: `dist`
+   - Environment variable: `VITE_API_URL=https://<api-domain>`
+3. `public/_redirects` is included so `/@username`, `/dash` etc. fall back to
+   `index.html` (SPA routing).
+
+> Cloudflare "path" fields (Page Rules, Workers Routes, Access…) reject special
+> characters like `;|&()<>`. Enter plain path patterns only, e.g. `/*` — the
+> domain goes in its own field, never in the path field.
 
 ## Database schema
 
