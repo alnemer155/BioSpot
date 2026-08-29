@@ -4,3 +4,7 @@ dist
 *.local
 _ref_bio-abdullah
 server.log
+.dev.vars
+.wrangler
+wc.txt
+wrangler.log

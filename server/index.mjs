@@ -75,7 +75,7 @@ app.post("/api/auth/register", async (req, res) => {
 
     const { rows } = await pool.query(
       "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id, username, email, created_at",
-      [uname, String(email).toLowerCase().trim(), hashPassword(password)]
+      [uname, String(email).toLowerCase().trim(), await hashPassword(password)]
     );
     const user = rows[0];
     await upsertProfile(user.id, { name: "Your Name", title: "", bio: "" });
@@ -94,7 +94,7 @@ app.post("/api/auth/login", async (req, res) => {
     const id = String(email || "").toLowerCase().trim();
     const isEmail = EMAIL_RE.test(id);
     const user = isEmail ? await getUserByEmail(id) : await getUserByUsername(id);
-    if (!user || !verifyPassword(String(password || ""), user.password_hash)) {
+    if (!user || !(await verifyPassword(String(password || ""), user.password_hash))) {
       return res.status(401).json({ error: "Invalid email/username or password." });
     }
     setSessionCookie(res, createToken(user.id));

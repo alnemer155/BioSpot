@@ -17,9 +17,11 @@ zero-radius borders, fade-up animations) and rebuilt on **Vite**.
 ## Stack
 
 - Frontend: Vite + React + TypeScript + Tailwind CSS + React Router
-- Backend: Express (Node) — serves the API and the built `dist/`
-- Database: Neon PostgreSQL (`pg`), schema auto-created on first run
-- Auth: scrypt password hashing + signed HttpOnly session cookie
+- API: **Cloudflare Pages Functions** (`functions/api/`) using the Neon serverless
+  driver — same-origin with the frontend, no separate server needed
+- Alternative API: Express server (`server/`) for any Node host — same endpoints,
+  same PBKDF2 password hashing
+- Database: Neon PostgreSQL, schema auto-created on first request
 
 ## Run
 
@@ -42,18 +44,25 @@ Environment variables live in `.env`:
 - `CORS_ORIGIN` — (optional) frontend origin when the API is hosted separately;
   also switches session cookies to `SameSite=None; Secure`
 
-## Deploying the frontend to Cloudflare Pages
+## Deploying to Cloudflare Pages (everything in one project)
 
-The Express API cannot run on Cloudflare Pages (static hosting only), so:
+The API runs as Pages Functions, so no separate server is required:
 
-1. Host the API (`npm start`) on any Node platform (VPS, Railway, Render, Fly.io…)
-   and set `DATABASE_URL`, `SESSION_SECRET`, and `CORS_ORIGIN=https://<pages-domain>`.
-2. In Cloudflare Pages create a project:
+1. In Cloudflare Pages, connect this repository with:
+   - Framework preset: **None**
    - Build command: `npm run build`
    - Build output directory: `dist`
-   - Environment variable: `VITE_API_URL=https://<api-domain>`
-3. `public/_redirects` is included so `/@username`, `/dash` etc. fall back to
-   `index.html` (SPA routing).
+2. In **Settings → Environment variables** add (Production and Preview):
+   - `DATABASE_URL` — the Neon connection string
+   - `SESSION_SECRET` — any long random string
+3. Deploy. Registration, login and `/dash` now work on the Pages domain
+   (`public/_routes.json` routes `/api/*` to the Functions; everything else is the SPA).
+
+For local development of the Functions: `npx wrangler pages dev dist`
+(reads secrets from `.dev.vars`).
+
+The Express server (`server/`) remains available for Node hosting — endpoints are
+identical, and passwords are hashed the same way in both.
 
 > Cloudflare "path" fields (Page Rules, Workers Routes, Access…) reject special
 > characters like `;|&()<>`. Enter plain path patterns only, e.g. `/*` — the
