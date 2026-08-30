@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api } from "@/lib/api";
+import { supabase } from "@/utils/supabase";
 import { useAuth } from "@/lib/auth";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const { refresh } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -16,8 +16,9 @@ export default function Login() {
     setBusy(true);
     setError(null);
     try {
-      const { user } = await api.login({ email, password });
-      setUser(user);
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) throw new Error(signInError.message);
+      await refresh();
       navigate("/dash");
     } catch (err) {
       setError((err as Error).message);
@@ -34,19 +35,17 @@ export default function Login() {
         </Link>
 
         <h1 className="text-lg font-semibold tracking-tight text-foreground">Sign in</h1>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Welcome back. Enter your email or username.
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">Welcome back.</p>
 
         <form onSubmit={submit} className="mt-8 space-y-4">
           <label className="block space-y-1.5">
-            <span className="text-xs text-muted-foreground">Email or username</span>
+            <span className="text-xs text-muted-foreground">Email</span>
             <input
-              type="text"
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              autoComplete="username"
+              autoComplete="email"
               className="input-base"
             />
           </label>

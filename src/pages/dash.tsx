@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api } from "@/lib/api";
+import { api, type StatsResult } from "@/lib/api";
 import type { BioData, BioItem, BioItemType, Profile } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
 import { LoadingIndicator } from "@/components/loading-indicator";
 import { QrCodeSection } from "@/components/qr-code-section";
+import { FONTS, fontFamily } from "@/lib/fonts";
 
 const DEFAULT_DATA: BioData = {
   profile: {
@@ -35,7 +36,7 @@ function fileToDataUrl(file: File, maxBytes: number): Promise<string> {
 
 export default function Dash() {
   const navigate = useNavigate();
-  const { user, loading: authLoading, setUser } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
 
   const [data, setData] = useState<BioData>(DEFAULT_DATA);
   const dataRef = useRef(data);
@@ -208,9 +209,103 @@ export default function Dash() {
   };
 
   const handleLogout = async () => {
-    await setUser(null);
-    await api.logout().catch(() => {});
+    await logout();
     navigate("/");
+  };
+
+  // ---- Feature services state ----
+  const [agentPrompt, setAgentPrompt] = useState("");
+  const [agentBusy, setAgentBusy] = useState<"gen" | "translate" | null>(null);
+  const [featureError, setFeatureError] = useState<string | null>(null);
+  const [twitterHandle, setTwitterHandle] = useState("");
+  const [twitterBusy, setTwitterBusy] = useState(false);
+  const [stats, setStats] = useState<StatsResult | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!loading && user) api.stats().then(setStats).catch(() => {});
+  }, [loading, user, saveStatus === "saved"]);
+
+  const runAgent = async () => {
+    if (!agentPrompt.trim()) return;
+    setAgentBusy("gen");
+    setFeatureError(null);
+    try {
+      const res = await api.agent(agentPrompt.trim());
+      apply((prev) => ({
+        profile: {
+          ...prev.profile,
+          name: res.profile.name || prev.profile.name,
+          title: res.profile.title || prev.profile.title,
+          bio: res.profile.bio || prev.profile.bio,
+          translations: res.translations || prev.profile.translations,
+        },
+        items: res.items.map((it, i) => ({
+          id: genId(),
+          type: it.type,
+          label: it.label,
+          url: it.url,
+          description: it.description,
+          image_url: null,
+          sort_order: i + 1,
+          visible: true,
+        })),
+      }));
+    } catch (e) {
+      setFeatureError((e as Error).message);
+    } finally {
+      setAgentBusy(null);
+    }
+  };
+
+  const runTranslate = async () => {
+    if (!profile.name || profile.name === "Your Name") {
+      setFeatureError("Set your name first, then translate.");
+      return;
+    }
+    setAgentBusy("translate");
+    setFeatureError(null);
+    try {
+      const { translations } = await api.agentTranslate({
+        name: profile.name,
+        title: profile.title,
+        bio: profile.bio,
+      });
+      if (!translations) throw new Error("Translation returned no languages.");
+      updateProfile({ translations });
+    } catch (e) {
+      setFeatureError((e as Error).message);
+    } finally {
+      setAgentBusy(null);
+    }
+  };
+
+  const importTwitter = async () => {
+    if (!twitterHandle.trim()) return;
+    setTwitterBusy(true);
+    setFeatureError(null);
+    try {
+      const info = await api.twitter(twitterHandle.trim());
+      updateProfile({
+        name: info.name,
+        title: `@${info.handle} on X`,
+        avatar_url: info.avatar_url,
+      });
+    } catch (e) {
+      setFeatureError((e as Error).message);
+    } finally {
+      setTwitterBusy(false);
+    }
+  };
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setFeatureError("Could not copy. Select the URL manually.");
+    }
   };
 
   // ---- Render ----
@@ -295,6 +390,214 @@ export default function Dash() {
         <div className="grid gap-8 lg:grid-cols-2">
           {/* ---- Left: Editor ---- */}
           <section className="space-y-6">
+            {/* Agent — AI bio generator */}
+            <div className="space-y-4 border border-border bg-card p-5 animate-fade-up">
+              <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Agent — AI Bio Generator
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Describe yourself in a sentence or two; the Agent writes your bio page
+                and translates it to العربية، 日本語، Français، Русский.
+              </p>
+              <textarea
+                value={agentPrompt}
+                onChange={(e) => setAgentPrompt(e.target.value)}
+                rows={3}
+                placeholder="e.g. Coffee scientist in Tokyo, runs a small roastery, posts brewing guides on YouTube"
+                className="input-base resize-none"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={runAgent}
+                  disabled={!agentPrompt.trim() || agentBusy !== null}
+                  className="border border-foreground bg-foreground px-4 py-2 text-xs font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  {agentBusy === "gen" ? "Generating…" : "Generate Bio"}
+                </button>
+                <button
+                  onClick={runTranslate}
+                  disabled={agentBusy !== null}
+                  className="border border-border px-4 py-2 text-xs text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  {agentBusy === "translate" ? "Translating…" : "Translate my profile"}
+                </button>
+              </div>
+              {profile.translations && (
+                <p className="text-xs text-muted-foreground">
+                  Translations available:{" "}
+                  {Object.keys(profile.translations)
+                    .map((l) => l.toUpperCase())
+                    .join(" · ")}
+                </p>
+              )}
+            </div>
+
+            {/* Twitter (X) import */}
+            <div className="space-y-4 border border-border bg-card p-5 animate-fade-in-delay-1">
+              <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Twitter (X) — Import Profile
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Pull your display name, avatar and follower count from X into your page.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <div className="flex min-w-[200px] flex-1 items-stretch border border-border bg-background focus-within:border-foreground transition-colors">
+                  <span className="flex items-center border-r border-border px-3 text-xs text-muted-foreground">
+                    @
+                  </span>
+                  <input
+                    type="text"
+                    value={twitterHandle}
+                    onChange={(e) => setTwitterHandle(e.target.value.replace(/[^A-Za-z0-9_]/g, ""))}
+                    placeholder="handle"
+                    className="w-full bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={importTwitter}
+                  disabled={!twitterHandle.trim() || twitterBusy}
+                  className="border border-border px-4 py-2 text-xs text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  {twitterBusy ? "Importing…" : "Import"}
+                </button>
+              </div>
+            </div>
+
+            {/* Font picker */}
+            <div className="space-y-4 border border-border bg-card p-5 animate-fade-in-delay-1">
+              <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Font
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(FONTS).map(([key, f]) => (
+                  <button
+                    key={key}
+                    onClick={() => updateProfile({ font: key === "inter" ? null : key })}
+                    style={{ fontFamily: f.family }}
+                    className={`border px-3 py-1.5 text-xs transition-colors ${
+                      (profile.font || "inter") === key
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Templates — coming soon */}
+            <div className="space-y-3 border border-border bg-card p-5 opacity-60">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Templates
+                </h2>
+                <span className="border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                  Coming soon
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Ready-made layouts for your page are on the way.
+              </p>
+            </div>
+
+            {/* Stats */}
+            <div className="space-y-4 border border-border bg-card p-5">
+              <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Statistics
+              </h2>
+              {stats ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="border border-border p-4 text-center">
+                      <p className="text-2xl font-semibold text-foreground">{stats.views}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Page views</p>
+                    </div>
+                    <div className="border border-border p-4 text-center">
+                      <p className="text-2xl font-semibold text-foreground">{stats.clicks}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Link clicks</p>
+                    </div>
+                  </div>
+                  {stats.perItem.length > 0 && (
+                    <div className="space-y-1.5">
+                      {stats.perItem.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{p.label || "Untitled"}</span>
+                          <span className="text-foreground">{p.clicks} clicks</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {stats.daily.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Last 7 days</p>
+                      {stats.daily.map((d) => (
+                        <div key={d.day} className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{d.day.slice(5)}</span>
+                          <span className="text-foreground">
+                            {d.views} views · {d.clicks} clicks
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {stats.views === 0 && stats.clicks === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No traffic yet — share your page to start collecting stats.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Loading stats…</p>
+              )}
+            </div>
+
+            {/* Share */}
+            <div className="space-y-4 border border-border bg-card p-5">
+              <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Share
+              </h2>
+              <p className="break-all text-xs text-muted-foreground">{publicUrl}</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={copyLink}
+                  className="border border-border px-4 py-2 text-xs text-foreground transition-colors hover:bg-accent"
+                >
+                  {copied ? "Copied!" : "Copy link"}
+                </button>
+                <a
+                  href={`https://x.com/intent/tweet?url=${encodeURIComponent(publicUrl)}&text=${encodeURIComponent("My BioSpot page")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="border border-border px-4 py-2 text-xs text-foreground transition-colors hover:bg-accent"
+                >
+                  Share on X
+                </a>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(publicUrl)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="border border-border px-4 py-2 text-xs text-foreground transition-colors hover:bg-accent"
+                >
+                  WhatsApp
+                </a>
+                <a
+                  href={`https://t.me/share/url?url=${encodeURIComponent(publicUrl)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="border border-border px-4 py-2 text-xs text-foreground transition-colors hover:bg-accent"
+                >
+                  Telegram
+                </a>
+              </div>
+            </div>
+
+            {featureError && (
+              <p className="border border-destructive px-3 py-2 text-xs text-destructive">
+                {featureError}
+              </p>
+            )}
+
             {/* Profile */}
             <div className="space-y-4 border border-border bg-card p-5 animate-fade-in-delay-1">
               <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -419,7 +722,10 @@ export default function Dash() {
             <h2 className="mb-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Live Preview
             </h2>
-            <div className="border border-border bg-background p-6">
+            <div
+              className="border border-border bg-background p-6"
+              style={{ fontFamily: fontFamily(profile.font) }}
+            >
               <div className="flex flex-col items-center text-center">
                 {profile.avatar_url ? (
                   <img

@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "@/lib/api";
+import { supabase } from "@/utils/supabase";
 import type { User } from "@/lib/types";
 
 interface AuthCtx {
@@ -41,11 +42,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refresh();
+    supabase.auth.getSession().then(() => refresh());
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") setUser(null);
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") refresh();
+    });
+    return () => sub.subscription.unsubscribe();
   }, [refresh]);
 
   const logout = useCallback(async () => {
-    await api.logout().catch(() => {});
+    await supabase.auth.signOut();
     setUser(null);
   }, []);
 

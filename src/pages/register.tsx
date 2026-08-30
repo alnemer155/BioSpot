@@ -1,17 +1,19 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
+import { supabase } from "@/utils/supabase";
 import { useAuth } from "@/lib/auth";
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 
 export default function Register() {
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const { refresh } = useAuth();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const uname = username.toLowerCase();
@@ -22,9 +24,20 @@ export default function Register() {
     if (!valid) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      const { user } = await api.register({ username: uname, email, password });
-      setUser(user);
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { username: uname } },
+      });
+      if (signUpError) throw new Error(signUpError.message);
+      if (!data.session) {
+        setNotice("Check your email to confirm your account, then sign in.");
+        return;
+      }
+      await api.setUsername(uname);
+      await refresh();
       navigate("/dash");
     } catch (err) {
       setError((err as Error).message);
@@ -97,6 +110,11 @@ export default function Register() {
           {error && (
             <p className="border border-destructive px-3 py-2 text-xs text-destructive">
               {error}
+            </p>
+          )}
+          {notice && (
+            <p className="border border-border px-3 py-2 text-xs text-muted-foreground">
+              {notice}
             </p>
           )}
 

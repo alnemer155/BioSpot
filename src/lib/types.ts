@@ -6,6 +6,8 @@ export interface Profile {
   title?: string | null;
   bio?: string | null;
   avatar_url?: string | null;
+  font?: string | null;
+  translations?: Record<string, { name: string; title: string | null; bio: string | null }> | null;
   updated_at?: string;
 }
 

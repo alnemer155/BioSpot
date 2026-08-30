@@ -1,6 +1,14 @@
 import type { BioItem } from "@/lib/types";
 
-export function BioItemRow({ item, index }: { item: BioItem; index: number }) {
+export function BioItemRow({
+  item,
+  index,
+  onTrackClick,
+}: {
+  item: BioItem;
+  index: number;
+  onTrackClick?: () => void;
+}) {
   const delayClass = `animate-fade-in-delay-${Math.min(index + 1, 4)}`;
 
   if (item.type === "image" && item.image_url) {
@@ -33,6 +41,7 @@ export function BioItemRow({ item, index }: { item: BioItem; index: number }) {
       href={item.url || "#"}
       target={item.url?.startsWith("http") ? "_blank" : undefined}
       rel={item.url?.startsWith("http") ? "noopener noreferrer" : undefined}
+      onClick={onTrackClick}
       className={`group flex w-full items-center justify-between border border-border bg-card px-5 py-4 transition-colors duration-150 hover:border-foreground hover:bg-accent ${delayClass}`}
     >
       <span className="flex flex-col">
@@ -45,7 +54,7 @@ export function BioItemRow({ item, index }: { item: BioItem; index: number }) {
           <span className="mt-0.5 text-xs text-muted-foreground">{item.description}</span>
         )}
       </span>
-      <span className="ml-3 text-muted-foreground transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-foreground">
+      <span className="ml-3 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-foreground">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path
             d="M3 7h8M7 3l4 4-4 4"

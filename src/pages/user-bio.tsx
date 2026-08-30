@@ -1,27 +1,37 @@
 import { BioPage } from "@/components/bio-page";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
+import { t, type Lang } from "@/lib/i18n";
+
+const LANG_RE = /^\/(ar|ja|fr|ru)(?:\/~)?\/@([a-z0-9_]{3,20})\/?$/i;
+const PLAIN_RE = /^\/@([a-z0-9_]{3,20})\/?$/i;
 
 export default function UserBio() {
-  const location = useLocation();
-  const path = location.pathname;
+  const { pathname } = useLocation();
 
-  // Only paths of the form /@username render a bio page.
-  if (!path.startsWith("/@") || path.length < 3) {
+  let lang: Lang = "en";
+  let username = "";
+  const m = pathname.match(LANG_RE);
+  if (m) {
+    lang = m[1].toLowerCase() as Lang;
+    username = m[2];
+  } else {
+    const p = pathname.match(PLAIN_RE);
+    if (p) username = p[1];
+  }
+
+  if (!username) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center px-5 text-center">
-        <p className="text-sm text-muted-foreground animate-fade-up">
-          This page does not exist.
-        </p>
-        <a
-          href="/"
+        <p className="text-sm text-muted-foreground animate-fade-up">{t("notExist", "en")}</p>
+        <Link
+          to="/"
           className="mt-4 border border-border px-4 py-2 text-xs text-foreground hover:bg-accent transition-colors animate-fade-up"
         >
-          Back to BioSpot
-        </a>
+          {t("back", "en")}
+        </Link>
       </main>
     );
   }
 
-  const username = path.slice(2).replace(/\/+$/, "").toLowerCase();
-  return <BioPage username={username} />;
+  return <BioPage username={username} lang={lang} />;
 }

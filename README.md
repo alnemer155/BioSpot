@@ -9,19 +9,44 @@ zero-radius borders, fade-up animations) and rebuilt on **Vite**.
 
 - **Landing page** at `/` — BioSpot, bio for everyone
 - **Registration** at `/register` — username (`bio.jaafar.app/@XXXX`), email, password
-- **Sign in** at `/login` (email or username + password)
-- **Dashboard** at `/dash` — edit profile, add/reorder/hide links, texts & images,
-  live preview, QR code, undo/redo (Ctrl+Z), autosave
-- **Public bio page** at `/@username`
+  (Supabase Auth; email confirmation configurable in the Supabase dashboard)
+- **Sign in** at `/login`
+- **Dashboard** at `/dash`:
+  - **Agent** — AI bio generator (Gemini) that writes your page from a prompt and
+    translates it into العربية / 日本語 / Français / Русский
+  - **Twitter (X) import** — pull display name, avatar and handle from X
+  - **Fonts** — IBM Plex Sans Arabic, Playfair Display, Noto Serif JP, Rubik,
+    Baloo Bhaijaan 2 (plus default Inter)
+  - **Templates** — coming soon
+  - **Statistics** — page views, per-item clicks, last-7-days activity
+  - **Share** — copy link, share to X / WhatsApp / Telegram
+  - Profile & items editor with live preview, drag-and-drop, undo/redo, autosave, QR code
+- **Public bio page** at `/@username`, with language variants
+  `/ar/@username` (also `/ar/~/@username`), `/ja/…`, `/fr/…`, `/ru/…` — RTL for Arabic
 
 ## Stack
 
 - Frontend: Vite + React + TypeScript + Tailwind CSS + React Router
+- Auth: **Supabase Auth** (`@supabase/supabase-js`) — the frontend signs in and
+  sends the access token; API verifies it against the Supabase Auth API
 - API: **Cloudflare Pages Functions** (`functions/api/`) using the Neon serverless
   driver — same-origin with the frontend, no separate server needed
-- Alternative API: Express server (`server/`) for any Node host — same endpoints,
-  same PBKDF2 password hashing
+- Alternative API: Express server (`server/`) for any Node host — same endpoints
 - Database: Neon PostgreSQL, schema auto-created on first request
+
+## Environment variables
+
+Cloudflare Pages (Production + Preview):
+
+- `DATABASE_URL` — Neon Postgres connection string
+- `SUPABASE_URL` + `SUPABASE_ANON_KEY` — used by the API to verify tokens
+- `GEMINI_API_KEY` — Google AI Studio key for the Agent
+
+Build-time (Vite, used by the frontend):
+
+- `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+Local dev uses `.env` (Vite + Express) and `.dev.vars` (wrangler) — both gitignored.
 
 ## Run
 
