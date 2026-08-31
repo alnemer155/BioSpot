@@ -23,6 +23,79 @@ const app = express();
 app.use(express.json({ limit: "2mb" }));
 const env = process.env;
 
+const SUPA_URL = env.SUPABASE_URL;
+const SUPA_KEY = env.SUPABASE_ANON_KEY;
+
+app.post("/api/auth/signup", async (req, res) => {
+  try {
+    const r = await fetch(`${SUPA_URL}/auth/v1/signup`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/auth/signin", async (req, res) => {
+  try {
+    const r = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/auth/refresh", async (req, res) => {
+  try {
+    const r = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/auth/user", async (req, res) => {
+  try {
+    const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+    const r = await fetch(`${SUPA_URL}/auth/v1/user`, {
+      method: "GET",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` },
+    });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/auth/logout", async (req, res) => {
+  try {
+    const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+    const r = await fetch(`${SUPA_URL}/auth/v1/logout`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    });
+    const data = await r.json().catch(() => ({}));
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 async function auth(req) {
   const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   const su = await verifySupabaseToken(token, env);
