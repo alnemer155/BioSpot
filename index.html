@@ -4,14 +4,27 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="BioSpot — one page for everything you are. Free for everyone." />
-    <title>BioSpot</title>
+    <meta name="description" content="LinkTroo — one page for everything you are. Free for everyone." />
+    <title>LinkTroo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Playfair+Display:wght@400;600;700&family=Noto+Serif+JP:wght@400;600;700&family=Rubik:wght@400;600;700&family=Baloo+Bhaijaan+2:wght@400;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500&family=Playfair+Display:wght@400;600;700&family=Noto+Serif+JP:wght@400;600;700&family=Rubik:wght@400;600;700&family=Baloo+Bhaijaan+2:wght@400;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      try {
+        if (localStorage.getItem("linktroo-theme") === "light") {
+          document.documentElement.classList.remove("dark");
+          document.documentElement.classList.add("light");
+        }
+        var savedLang = localStorage.getItem("linktroo-lang");
+        if (savedLang) {
+          document.documentElement.lang = savedLang;
+          document.documentElement.dir = savedLang === "ar" ? "rtl" : "ltr";
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,4 +1,5 @@
 import type { BioItem } from "@/lib/types";
+import { ItemBody, youtubeId, xPostId } from "@/components/item-embeds";
 
 export function BioItemRow({
   item,
@@ -11,14 +12,45 @@ export function BioItemRow({
 }) {
   const delayClass = `animate-fade-in-delay-${Math.min(index + 1, 4)}`;
 
-  if (item.type === "image" && item.image_url) {
+  // Full-width embeds
+  if (
+    (item.type === "youtube" && item.url && youtubeId(item.url)) ||
+    (item.type === "x" && item.url && xPostId(item.url)) ||
+    (item.type === "image" && item.image_url)
+  ) {
+    return (
+      <div className={delayClass} onClick={item.type === "image" ? onTrackClick : undefined}>
+        <ItemBody item={item} />
+        {item.label && item.type !== "image" && (
+          <p className="mt-1.5 text-xs text-muted-foreground">{item.label}</p>
+        )}
+      </div>
+    );
+  }
+
+  if (item.type === "file" && item.url) {
     return (
       <div className={delayClass}>
-        <img
-          src={item.image_url}
-          alt={item.label || ""}
-          className="w-full border border-border object-cover"
-        />
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={onTrackClick}
+          className="group flex w-full items-center gap-3 border border-border bg-card px-5 py-4 transition-colors duration-150 hover:border-foreground hover:bg-accent"
+        >
+          <span className="border border-border px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+            {String((item.meta as { type?: string })?.type || "file").split("/").pop()?.slice(0, 4) || "file"}
+          </span>
+          <span className="flex flex-1 flex-col">
+            {item.label && (
+              <span className="text-sm font-medium tracking-tight text-foreground">{item.label}</span>
+            )}
+            <span className="text-xs text-muted-foreground">Download</span>
+          </span>
+          <span className="text-muted-foreground transition-transform duration-150 group-hover:translate-y-0.5">
+            ↓
+          </span>
+        </a>
       </div>
     );
   }

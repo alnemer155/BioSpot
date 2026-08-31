@@ -1,16 +1,30 @@
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
+async function authHeaders(): Promise<Record<string, string>> {
   const { supabase } = await import("@/utils/supabase");
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const { data } = await supabase.auth.getSession();
-  if (data.session?.access_token) {
-    headers.Authorization = `Bearer ${data.session.access_token}`;
+  if (supabase) {
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.access_token) {
+      headers.Authorization = `Bearer ${data.session.access_token}`;
+    }
   }
+  return headers;
+}
+
+async function request<T>(url: string, options?: RequestInit): Promise<T> {
+  const headers = await authHeaders();
   const res = await fetch(url, { headers, ...options });
-  const data2 = await res.json().catch(() => ({}));
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error((data2 as { error?: string }).error || "Something went wrong.");
+    throw new Error((data as { error?: string }).error || "Something went wrong.");
   }
-  return data2 as T;
+  return data as T;
+}
+
+export interface PageSummary {
+  id: string;
+  slug: string;
+  name: string;
+  is_default: boolean;
 }
 
 export interface AgentResult {
@@ -24,6 +38,8 @@ export interface StatsResult {
   clicks: number;
   perItem: { id: string; label: string | null; clicks: number }[];
   daily: { day: string; views: number; clicks: number }[];
+  referrers: { source: string; n: number }[];
+  countries: { country: string; n: number }[];
 }
 
 export const api = {
@@ -33,26 +49,36 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ username }),
     }),
-  getBio: () => request<import("./types").BioData>("/api/bio"),
-  saveBio: (data: import("./types").BioData) =>
-    request<import("./types").BioData>("/api/bio", {
+  listPages: () => request<{ pages: PageSummary[] }>("/api/pages"),
+  createPage: (name: string, slug: string) =>
+    request<{ page: PageSummary }>("/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ name, slug }),
+    }),
+  getBio: (pageId?: string) =>
+    request<import("./types").BioData>(`/api/bio${pageId ? `?page=${pageId}` : ""}`),
+  saveBio: (data: import("./types").BioData, pageId?: string) =>
+    request<import("./types").BioData>(`/api/bio${pageId ? `?page=${pageId}` : ""}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
   getPublicBio: (username: string) =>
     request<import("./types").BioData>(`/api/u/${encodeURIComponent(username)}`),
-  trackView: (username: string, lang: string) =>
-    fetch(`/api/u/${encodeURIComponent(username)}`, {
+  getPublicSlug: (slug: string) =>
+    request<import("./types").BioData>(`/api/p/${encodeURIComponent(slug)}`),
+  track: (kind: "username" | "slug", id: string, type: "view" | "click", opts?: { itemId?: string; lang?: string }) => {
+    const base = kind === "username" ? "/api/u/" : "/api/p/";
+    return fetch(`${base}${encodeURIComponent(id)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "view", lang }),
-    }).catch(() => {}),
-  trackClick: (username: string, itemId: string, lang: string) =>
-    fetch(`/api/u/${encodeURIComponent(username)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "click", itemId, lang }),
-    }).catch(() => {}),
+      body: JSON.stringify({
+        type,
+        itemId: opts?.itemId,
+        lang: opts?.lang,
+        referrer: typeof document !== "undefined" ? document.referrer || null : null,
+      }),
+    }).catch(() => {});
+  },
   agent: (prompt: string) =>
     request<AgentResult>("/api/agent", { method: "POST", body: JSON.stringify({ prompt }) }),
   agentTranslate: (profile: { name: string; title?: string | null; bio?: string | null }) =>
@@ -64,5 +90,16 @@ export const api = {
     request<{ handle: string; name: string; followers: number | null; avatar_url: string; url: string }>(
       `/api/twitter?handle=${encodeURIComponent(handle)}`
     ),
-  stats: () => request<StatsResult>("/api/stats"),
+  stats: (pageId?: string) =>
+    request<StatsResult>(`/api/stats${pageId ? `?page=${pageId}` : ""}`),
 };
+
+export async function uploadFile(userId: string, file: File): Promise<string> {
+  const { supabase } = await import("@/utils/supabase");
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const path = `${userId}/${Date.now()}-${file.name.replace(/[^\w.\-]/g, "_")}`;
+  const { error } = await supabase.storage.from("files").upload(path, file);
+  if (error) throw new Error(error.message);
+  const { data } = supabase.storage.from("files").getPublicUrl(path);
+  return data.publicUrl;
+}

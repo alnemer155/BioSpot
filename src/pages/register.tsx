@@ -1,14 +1,17 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
-import { supabase } from "@/utils/supabase";
+import { supabase, supabaseConfigured } from "@/utils/supabase";
 import { useAuth } from "@/lib/auth";
+import { useI18n } from "@/lib/i18n";
+import { LanguagePicker, ThemeToggle } from "@/components/controls";
 
-const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+const USERNAME_RE = /^[a-z0-9_-]{3,30}$/;
 
 export default function Register() {
   const navigate = useNavigate();
   const { refresh } = useAuth();
+  const { tr, rtl } = useI18n();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +24,7 @@ export default function Register() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!valid) return;
+    if (!valid || !supabase) return;
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -33,7 +36,7 @@ export default function Register() {
       });
       if (signUpError) throw new Error(signUpError.message);
       if (!data.session) {
-        setNotice("Check your email to confirm your account, then sign in.");
+        setNotice(tr("auth.confirmEmail"));
         return;
       }
       await api.setUsername(uname);
@@ -47,25 +50,34 @@ export default function Register() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center px-5 py-16 sm:py-24">
+    <main className="flex min-h-screen flex-col items-center px-5 py-16 sm:py-24" dir={rtl ? "rtl" : "ltr"}>
       <div className="w-full max-w-sm animate-fade-up">
-        <Link to="/" className="mb-10 block text-center text-sm font-semibold tracking-tight text-foreground">
-          BioSpot
-        </Link>
+        <div className="mb-10 flex items-center justify-center gap-2">
+          <Link to="/" className="text-sm font-semibold tracking-tight text-foreground">
+            LinkTroo
+          </Link>
+          <ThemeToggle />
+          <LanguagePicker />
+        </div>
 
         <h1 className="text-lg font-semibold tracking-tight text-foreground">
-          Create your BioSpot
+          {tr("auth.create.title")}
         </h1>
-        <p className="mt-1 text-xs text-muted-foreground">
-          One page for everything you are. Free for everyone.
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{tr("auth.create.sub")}</p>
+
+        {!supabaseConfigured && (
+          <p className="mt-6 border border-destructive px-3 py-2 text-xs text-destructive">
+            Supabase is not configured. Set VITE_SUPABASE_URL and
+            VITE_SUPABASE_PUBLISHABLE_KEY, then rebuild.
+          </p>
+        )}
 
         <form onSubmit={submit} className="mt-8 space-y-4">
           <label className="block space-y-1.5">
-            <span className="text-xs text-muted-foreground">Username</span>
+            <span className="text-xs text-muted-foreground">{tr("auth.username")}</span>
             <div className="flex items-stretch border border-border bg-background transition-colors focus-within:border-foreground">
-              <span className="flex items-center whitespace-nowrap border-r border-border px-3 text-xs text-muted-foreground">
-                bio.jaafar.app/@
+              <span className="flex items-center whitespace-nowrap border-r border-border px-3 text-xs text-muted-foreground" dir="ltr">
+                linktroo.cc/@
               </span>
               <input
                 type="text"
@@ -78,13 +90,13 @@ export default function Register() {
             </div>
             {uname && !USERNAME_RE.test(uname) && (
               <span className="block text-xs text-destructive">
-                3–20 characters: letters, numbers, underscores only.
+                3–30 characters: letters, numbers, underscores, dashes.
               </span>
             )}
           </label>
 
           <label className="block space-y-1.5">
-            <span className="text-xs text-muted-foreground">Email</span>
+            <span className="text-xs text-muted-foreground">{tr("auth.email")}</span>
             <input
               type="email"
               value={email}
@@ -96,41 +108,37 @@ export default function Register() {
           </label>
 
           <label className="block space-y-1.5">
-            <span className="text-xs text-muted-foreground">Password</span>
+            <span className="text-xs text-muted-foreground">{tr("auth.password")}</span>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
+              placeholder="••••••••"
               autoComplete="new-password"
               className="input-base"
             />
           </label>
 
           {error && (
-            <p className="border border-destructive px-3 py-2 text-xs text-destructive">
-              {error}
-            </p>
+            <p className="border border-destructive px-3 py-2 text-xs text-destructive">{error}</p>
           )}
           {notice && (
-            <p className="border border-border px-3 py-2 text-xs text-muted-foreground">
-              {notice}
-            </p>
+            <p className="border border-border px-3 py-2 text-xs text-muted-foreground">{notice}</p>
           )}
 
           <button
             type="submit"
-            disabled={!valid || busy}
+            disabled={!valid || busy || !supabaseConfigured}
             className="w-full border border-foreground bg-foreground py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            {busy ? "Creating…" : "Create account"}
+            {busy ? tr("auth.creating") : tr("auth.create.submit")}
           </button>
         </form>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Already have an account?{" "}
+          {tr("auth.haveAccount")}{" "}
           <Link to="/login" className="text-foreground underline-offset-2 hover:underline">
-            Sign in
+            {tr("auth.signin.submit")}
           </Link>
         </p>
       </div>
