@@ -1,5 +1,5 @@
-import { getSupabaseUser } from "../_lib/auth.js";
-import { makeSupa } from "../_lib/supa.js";
+import { getSupabaseUser } from "./_lib/auth.js";
+import { makeSupa } from "./_lib/supa.js";
 
 export async function onRequestPost(context) {
   const { request, env } = context;
