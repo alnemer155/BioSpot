@@ -1,40 +1,28 @@
-import { verifyAuth, createContextClient, createAdminClient } from "@supabase/server/core";
+import { createClient } from "@supabase/supabase-js";
 
-export async function getSupabaseUser(request, _env) {
+export async function getSupabaseUser(request, env) {
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) return null;
   try {
-    const { data, error } = await verifyAuth(request, { auth: "user" });
-    if (error || !data) return null;
-    return { id: data.userClaims.id, email: data.userClaims.email, user_metadata: {} };
-  } catch {
-    return null;
-  }
-}
-
-export async function verifyToken(token) {
-  if (!token) return null;
-  try {
-    const req = new Request("https://internal/auth", {
-      headers: { Authorization: `Bearer ${token}` },
+    const auth = request.headers.get("Authorization") || "";
+    const token = auth.replace(/^Bearer\s+/i, "");
+    if (!token) return null;
+    const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${token}`, apikey: env.SUPABASE_ANON_KEY },
     });
-    const { data, error } = await verifyAuth(req, { auth: "user" });
-    if (error || !data) return null;
-    return { token: data.token, claims: data.jwtClaims, userClaims: data.userClaims };
+    if (!r.ok) return null;
+    return await r.json();
   } catch {
     return null;
   }
 }
 
-export function getUserClient(token) {
-  return createContextClient({ auth: { token } });
-}
-
-export function getAdminClient() {
-  return createAdminClient();
+export function makeSupaClient(env, token) {
+  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  });
 }
 
 export function json(status, error) {
-  return new Response(JSON.stringify({ error }), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
+  return Response.json({ error }, { status });
 }

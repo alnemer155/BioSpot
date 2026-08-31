@@ -1,6 +1,18 @@
+import { createContextClient, createAdminClient } from "@supabase/server/core";
 import { createClient } from "@supabase/supabase-js";
 
-export function makeSupa(env, token) {
+// Server uses @supabase/server (JWKS), Cloudflare uses @supabase/supabase-js directly.
+// This file is the server entry — it creates clients via @supabase/server.
+
+export function makeSupa(_env, token) {
+  if (token) {
+    return createContextClient({ auth: { token } });
+  }
+  return createContextClient();
+}
+
+// Fallback: create a raw client using env vars (for admin ops or public queries)
+export function makeRawSupa(env, token) {
   return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY || env.SUPABASE_PUBLISHABLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: token ? { Authorization: `Bearer ${token}` } : {} },

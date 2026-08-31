@@ -10,7 +10,7 @@ export async function onRequestPost({ request, env }) {
     const body = await request.json().catch(() => ({}));
     const slug = String(body.username || "").toLowerCase().trim();
     if (!SLUG_RE.test(slug)) {
-      return json(400, "Username must be 3-30 characters: letters, numbers, underscores or dashes.");
+      return json(400, "Username must be 2-30 characters: letters, numbers, underscores or dashes.");
     }
     const supa = makeSupa(env, token);
     const taken = await makeSupa(env)

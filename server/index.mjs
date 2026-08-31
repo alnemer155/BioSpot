@@ -15,8 +15,8 @@ import {
   addEvent,
   getStats,
   SLUG_RE,
-} from "../functions/api/_lib/supa.js";
-import { verifyToken, getAdminClient } from "../functions/api/_lib/auth.js";
+} from "./_lib/supa.js";
+import { verifyToken, getAdminClient } from "./_lib/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
