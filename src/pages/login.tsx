@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { supabase, supabaseConfigured } from "@/utils/supabase";
+import { supabaseConfigured } from "@/utils/supabase";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { LanguagePicker, ThemeToggle } from "@/components/controls";
@@ -16,12 +16,20 @@ export default function Login() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!supabase) return;
+    if (!supabaseConfigured) return;
     setBusy(true);
     setError(null);
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) throw new Error(signInError.message);
+      const res = await fetch("/api/auth/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Signin failed");
+      if (data.session?.access_token) {
+        localStorage.setItem("linktroo-session", JSON.stringify(data.session));
+      }
       await refresh();
       navigate("/dash");
     } catch (err) {

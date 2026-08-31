@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
-import { supabase, supabaseConfigured } from "@/utils/supabase";
+import { supabaseConfigured } from "@/utils/supabase";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { LanguagePicker, ThemeToggle } from "@/components/controls";
@@ -23,34 +23,19 @@ export default function Register() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!valid || !supabase) return;
+    if (!valid || !supabaseConfigured) return;
     setBusy(true);
     setError(null);
     try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { username: uname } },
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
-      if (signUpError) throw new Error(signUpError.message);
-
-      if (data.session) {
-        // Email confirmation disabled — session issued immediately.
-        await api.setUsername(uname);
-        await refresh();
-        navigate("/dash");
-        return;
-      }
-
-      // Confirmation enabled server-side: try to sign straight in anyway.
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) {
-        if (/not confirmed|not verified/i.test(signInError.message)) {
-          throw new Error(
-            "Email confirmation is still enabled in Supabase. Disable it in Authentication → Sign In / Providers → Confirm email."
-          );
-        }
-        throw new Error(signInError.message);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Signup failed");
+      if (data.session?.access_token) {
+        localStorage.setItem("linktroo-session", JSON.stringify(data.session));
       }
       await api.setUsername(uname);
       await refresh();

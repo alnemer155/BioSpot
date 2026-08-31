@@ -1,12 +1,12 @@
 async function authHeaders(): Promise<Record<string, string>> {
-  const { supabase } = await import("@/utils/supabase");
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (supabase) {
-    const { data } = await supabase.auth.getSession();
-    if (data.session?.access_token) {
-      headers.Authorization = `Bearer ${data.session.access_token}`;
+  try {
+    const raw = localStorage.getItem("linktroo-session");
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s?.access_token) headers.Authorization = `Bearer ${s.access_token}`;
     }
-  }
+  } catch {}
   return headers;
 }
 
@@ -95,6 +95,11 @@ export const api = {
 };
 
 export async function uploadFile(userId: string, file: File): Promise<string> {
+  const raw = localStorage.getItem("linktroo-session");
+  if (!raw) throw new Error("Not authenticated.");
+  const s = JSON.parse(raw);
+  const token = s?.access_token;
+  if (!token) throw new Error("Not authenticated.");
   const { supabase } = await import("@/utils/supabase");
   if (!supabase) throw new Error("Supabase is not configured.");
   const path = `${userId}/${Date.now()}-${file.name.replace(/[^\w.\-]/g, "_")}`;

@@ -26,27 +26,50 @@ const env = process.env;
 const SUPA_URL = env.SUPABASE_URL;
 const SUPA_KEY = env.SUPABASE_ANON_KEY;
 
-app.all("/api/supa-proxy/*", async (req, res) => {
+app.post("/api/auth/signup", async (req, res) => {
   try {
-    const subPath = req.params[0];
-    const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
-    const targetUrl = `${SUPA_URL}/${subPath}${qs}`;
-    const fwdHeaders = { apikey: SUPA_KEY };
-    const auth = req.headers.authorization;
-    if (auth) fwdHeaders.Authorization = auth;
-    const ct = req.headers["content-type"];
-    if (ct) fwdHeaders["Content-Type"] = ct;
-    const r = await fetch(targetUrl, {
-      method: req.method,
-      headers: fwdHeaders,
-      body: req.method !== "GET" && req.method !== "HEAD" ? JSON.stringify(req.body) : undefined,
+    const { email, password } = req.body;
+    const r = await fetch(`${SUPA_URL}/auth/v1/signup`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
     });
-    const text = await r.text();
-    const rCt = r.headers.get("content-type") || "application/json";
-    res.status(r.status).set("Content-Type", rCt);
-    res.send(text || "{}");
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json({ error: data.msg || data.error_description || "Signup failed" });
+    res.json({ session: { access_token: data.access_token, refresh_token: data.refresh_token }, user: data.user });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/auth/signin", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const r = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json({ error: data.msg || data.error_description || "Signin failed" });
+    res.json({ session: { access_token: data.access_token, refresh_token: data.refresh_token }, user: data.user });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/auth/logout", async (req, res) => {
+  try {
+    const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+    if (token) {
+      await fetch(`${SUPA_URL}/auth/v1/logout`, {
+        method: "POST",
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.json({ ok: true });
   }
 });
 
