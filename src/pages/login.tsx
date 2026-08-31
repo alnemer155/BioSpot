@@ -25,7 +25,7 @@ export default function Login() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Signin failed");
       if (data.session?.access_token) {
         localStorage.setItem("linktroo-session", JSON.stringify(data.session));

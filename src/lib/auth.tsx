@@ -49,8 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();
-      const body = await res.json();
-      setUser(body.user);
+      const body = await res.json().catch(() => ({}));
+      setUser(body.user ?? null);
     } catch {
       setUser(null);
       localStorage.removeItem("linktroo-session");

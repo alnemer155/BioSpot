@@ -5,8 +5,8 @@ import { useI18n, t, LANGS, type Lang } from "@/lib/i18n";
 
 const LANG_CODES = LANGS.map((l) => l.code) as string[];
 
-const USER_RE = /^\/@([a-z0-9_-]{3,30})\/?$/i;
-const USER_LANG_RE = new RegExp(`^\\/(${LANG_CODES.join("|")})(?:\\/~)?\\/([a-z0-9_-]{3,30})\\/?$`, "i");
+const USER_RE = /^\/@([a-z0-9_-]{2,30})\/?$/i;
+const USER_LANG_RE = new RegExp(`^\\/(${LANG_CODES.join("|")})(?:\\/~)?\\/([a-z0-9_-]{2,30})\\/?$`, "i");
 const SLUG_RE = /^(?:\/([a-z]{2}))?\/~\/([a-z0-9_-]{2,30})\/?$/i;
 
 export default function PublicRouter() {

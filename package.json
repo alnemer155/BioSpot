@@ -12,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/server": "^1.5.1",
     "@supabase/supabase-js": "^2.112.4",
     "concurrently": "^9.1.0",
     "dotenv": "^16.4.5",

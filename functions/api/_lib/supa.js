@@ -1,16 +1,13 @@
-import { createClient } from "@supabase/supabase-js";
+import { createContextClient, createAdminClient } from "@supabase/server/core";
 
-// Supabase data layer — no direct SQL, no Neon. Every request runs with the
-// caller's access token so RLS enforces ownership.
-
-export function makeSupa(env, token) {
-  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-  });
+export function makeSupa(_env, token) {
+  if (token) {
+    return createContextClient({ auth: { token } });
+  }
+  return createContextClient();
 }
 
-const SLUG_RE = /^[a-z0-9_-]{3,30}$/;
+export const SLUG_RE = /^[a-z0-9_-]{2,30}$/;
 
 export async function ensureDefaultPage(supa, userId, wantedSlug) {
   const { data: existing } = await supa
@@ -137,5 +134,3 @@ export async function getStats(supa, pageId) {
     countries: Object.entries(cCounts).map(([country, n]) => ({ country, n })).sort((a, b) => b.n - a.n).slice(0, 8),
   };
 }
-
-export { SLUG_RE };

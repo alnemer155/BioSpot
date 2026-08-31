@@ -94,17 +94,20 @@ export const api = {
     request<StatsResult>(`/api/stats${pageId ? `?page=${pageId}` : ""}`),
 };
 
-export async function uploadFile(userId: string, file: File): Promise<string> {
+export async function uploadFile(_userId: string, file: File): Promise<string> {
   const raw = localStorage.getItem("linktroo-session");
   if (!raw) throw new Error("Not authenticated.");
   const s = JSON.parse(raw);
   const token = s?.access_token;
   if (!token) throw new Error("Not authenticated.");
-  const { supabase } = await import("@/utils/supabase");
-  if (!supabase) throw new Error("Supabase is not configured.");
-  const path = `${userId}/${Date.now()}-${file.name.replace(/[^\w.\-]/g, "_")}`;
-  const { error } = await supabase.storage.from("files").upload(path, file);
-  if (error) throw new Error(error.message);
-  const { data } = supabase.storage.from("files").getPublicUrl(path);
-  return data.publicUrl;
+  const arrayBuf = await file.arrayBuffer();
+  const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuf)));
+  const res = await fetch("/api/upload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ file: base64, filename: file.name, contentType: file.type }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Upload failed.");
+  return data.url;
 }

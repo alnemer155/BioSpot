@@ -6,7 +6,8 @@ import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { LanguagePicker, ThemeToggle } from "@/components/controls";
 
-const USERNAME_RE = /^[a-z0-9_-]{3,30}$/;
+const USERNAME_RE = /^[a-z0-9_-]{2,30}$/;
+const SHORT_RE = /^[a-z0-9_-]{2}$/;
 
 export default function Register() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export default function Register() {
 
   const uname = username.toLowerCase();
   const valid = USERNAME_RE.test(uname) && email && password.length >= 8;
+  const isShort = SHORT_RE.test(uname);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -32,7 +34,7 @@ export default function Register() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Signup failed");
       if (data.session?.access_token) {
         localStorage.setItem("linktroo-session", JSON.stringify(data.session));
@@ -80,15 +82,25 @@ export default function Register() {
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
                 placeholder="yourname"
                 autoComplete="username"
                 className="w-full bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
               />
             </div>
-            {uname && !USERNAME_RE.test(uname) && (
+            {uname && uname.length === 1 && (
               <span className="block text-xs text-destructive">
-                3–30 characters: letters, numbers, underscores, dashes.
+                Username must be at least 2 characters.
+              </span>
+            )}
+            {uname && uname.length >= 2 && !USERNAME_RE.test(uname) && (
+              <span className="block text-xs text-destructive">
+                2–30 characters: letters, numbers, underscores, dashes.
+              </span>
+            )}
+            {isShort && (
+              <span className="block text-xs text-muted-foreground">
+                Short usernames (2 chars) are limited to the first 50 users.
               </span>
             )}
           </label>
