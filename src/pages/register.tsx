@@ -16,7 +16,6 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const uname = username.toLowerCase();
@@ -27,7 +26,6 @@ export default function Register() {
     if (!valid || !supabase) return;
     setBusy(true);
     setError(null);
-    setNotice(null);
     try {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
@@ -35,9 +33,24 @@ export default function Register() {
         options: { data: { username: uname } },
       });
       if (signUpError) throw new Error(signUpError.message);
-      if (!data.session) {
-        setNotice(tr("auth.confirmEmail"));
+
+      if (data.session) {
+        // Email confirmation disabled — session issued immediately.
+        await api.setUsername(uname);
+        await refresh();
+        navigate("/dash");
         return;
+      }
+
+      // Confirmation enabled server-side: try to sign straight in anyway.
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        if (/not confirmed|not verified/i.test(signInError.message)) {
+          throw new Error(
+            "Email confirmation is still enabled in Supabase. Disable it in Authentication → Sign In / Providers → Confirm email."
+          );
+        }
+        throw new Error(signInError.message);
       }
       await api.setUsername(uname);
       await refresh();
@@ -121,9 +134,6 @@ export default function Register() {
 
           {error && (
             <p className="border border-destructive px-3 py-2 text-xs text-destructive">{error}</p>
-          )}
-          {notice && (
-            <p className="border border-border px-3 py-2 text-xs text-muted-foreground">{notice}</p>
           )}
 
           <button

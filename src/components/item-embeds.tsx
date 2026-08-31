@@ -1,4 +1,6 @@
 import type { BioItem } from "@/lib/types";
+import { FileDown } from "lucide-react";
+import { Icon } from "@/components/ui/icon";
 
 export function youtubeId(url: string): string | null {
   const m =
@@ -58,8 +60,7 @@ export function ItemBody({ item }: { item: BioItem }) {
         href={item.url}
         target="_blank"
         rel="noopener noreferrer"
-        onClick={() => item.id}
-        className={`group flex w-full items-center gap-3 border border-border bg-card px-5 py-4 transition-colors duration-150 hover:border-foreground hover:bg-accent animate-fade-in-delay-1`}
+        className="group flex w-full items-center gap-3 border border-border bg-card px-5 py-4 transition-colors duration-150 hover:border-foreground hover:bg-accent"
       >
         <span className="border border-border px-2 py-1 text-xs text-muted-foreground">
           {String(item.meta?.type || "FILE").split("/")[1]?.toUpperCase().slice(0, 4) || "FILE"}
@@ -70,9 +71,7 @@ export function ItemBody({ item }: { item: BioItem }) {
           )}
           <span className="text-xs text-muted-foreground">Download</span>
         </span>
-        <span className="text-muted-foreground transition-transform duration-150 group-hover:translate-y-0.5">
-          ↓
-        </span>
+        <Icon as={FileDown} className="text-muted-foreground transition-transform duration-150 group-hover:translate-y-0.5 group-hover:text-foreground" />
       </a>
     );
   }

@@ -7,6 +7,20 @@ import { LoadingIndicator } from "@/components/loading-indicator";
 import { QrCodeSection } from "@/components/qr-code-section";
 import { FONTS, fontFamily } from "@/lib/fonts";
 import { LanguagePicker, ThemeToggle } from "@/components/controls";
+import {
+  Sparkles,
+  AtSign,
+  Plus,
+  Upload,
+  GripVertical,
+  ExternalLink,
+  Copy,
+  Check,
+  FileText,
+  Eye,
+  MousePointerClick,
+} from "lucide-react";
+import { Icon } from "@/components/ui/icon";
 
 const DEFAULT_DATA: BioData = {
   profile: { name: "Your Name", title: "Your Title", bio: "A short bio about you." },
@@ -295,9 +309,10 @@ export default function Dash() {
                 </select>
                 <button
                   onClick={createPage}
-                  className="border border-border px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  className="flex items-center gap-1 border border-border px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  + New page
+                  <Icon as={Plus} size="sm" />
+                  New page
                 </button>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -327,9 +342,10 @@ export default function Dash() {
                 href={publicUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent"
+                className="flex items-center gap-1.5 border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent"
               >
-                View page ↗
+                <Icon as={ExternalLink} size="sm" />
+                View page
               </a>
               <button
                 onClick={handleLogout}
@@ -356,7 +372,8 @@ export default function Dash() {
           <section className="space-y-6">
             {/* Agent */}
             <div className="space-y-4 border border-border bg-card p-5 animate-fade-up">
-              <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <h2 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <Icon as={Sparkles} size="sm" />
                 Agent — AI Bio Generator
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -367,7 +384,8 @@ export default function Dash() {
 
             {/* Twitter import */}
             <div className="space-y-4 border border-border bg-card p-5 animate-fade-in-delay-1">
-              <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <h2 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <Icon as={AtSign} size="sm" />
                 Twitter (X) — Import Profile
               </h2>
               <TwitterBox onError={setLoadError} updateProfile={updateProfile} />
@@ -438,9 +456,10 @@ export default function Dash() {
                     <button
                       key={type}
                       onClick={() => addItem(type)}
-                      className="border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent"
+                      className="flex items-center gap-1 border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent"
                     >
-                      {type === "file" ? "⬆" : "+"} {label}
+                      <Icon as={type === "file" ? Upload : Plus} size="sm" />
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -731,11 +750,13 @@ function StatsCard({ activePageId, saveStatus }: { activePageId: string | null; 
       <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Statistics</h2>
       <div className="grid grid-cols-2 gap-3">
         <div className="border border-border p-4 text-center">
-          <p className="text-2xl font-semibold text-foreground">{stats.views}</p>
+          <Icon as={Eye} size="sm" className="mx-auto text-muted-foreground" />
+          <p className="mt-1 text-2xl font-semibold text-foreground">{stats.views}</p>
           <p className="mt-1 text-xs text-muted-foreground">Page views</p>
         </div>
         <div className="border border-border p-4 text-center">
-          <p className="text-2xl font-semibold text-foreground">{stats.clicks}</p>
+          <Icon as={MousePointerClick} size="sm" className="mx-auto text-muted-foreground" />
+          <p className="mt-1 text-2xl font-semibold text-foreground">{stats.clicks}</p>
           <p className="mt-1 text-xs text-muted-foreground">Link clicks</p>
         </div>
       </div>
@@ -792,7 +813,11 @@ function ShareCard({ publicUrl }: { publicUrl: string }) {
       <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Share</h2>
       <p className="break-all text-xs text-muted-foreground">{publicUrl}</p>
       <div className="flex flex-wrap gap-2">
-        <button onClick={copy} className="border border-border px-4 py-2 text-xs text-foreground transition-colors hover:bg-accent">
+        <button
+          onClick={copy}
+          className="flex items-center gap-1.5 border border-border px-4 py-2 text-xs text-foreground transition-colors hover:bg-accent"
+        >
+          <Icon as={copied ? Check : Copy} size="sm" />
           {copied ? "Copied!" : "Copy link"}
         </button>
         <a href={`https://x.com/intent/tweet?url=${encodeURIComponent(publicUrl)}&text=${encodeURIComponent("My LinkTroo page")}`} target="_blank" rel="noopener noreferrer" className="border border-border px-4 py-2 text-xs text-foreground transition-colors hover:bg-accent">
@@ -851,10 +876,7 @@ function ItemEditor({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="cursor-grab text-muted-foreground" aria-hidden="true">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-              <circle cx="3" cy="3" r="1" /><circle cx="3" cy="9" r="1" />
-              <circle cx="9" cy="3" r="1" /><circle cx="9" cy="9" r="1" />
-            </svg>
+            <Icon as={GripVertical} size="sm" />
           </span>
           <span className="text-xs uppercase tracking-wider text-muted-foreground">
             {item.type === "text_link" ? "text + link" : item.type}
@@ -1007,7 +1029,7 @@ function PreviewItem({ item }: { item: BioItem }) {
   if (item.type === "file" && item.url) {
     return (
       <div className="flex items-center gap-2 border border-border bg-card px-4 py-3">
-        <span className="text-xs text-muted-foreground">📄</span>
+        <Icon as={FileText} size="sm" className="text-muted-foreground" />
         <span className="text-xs font-medium text-foreground">{item.label || "File"}</span>
       </div>
     );

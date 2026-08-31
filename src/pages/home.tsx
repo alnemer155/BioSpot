@@ -3,6 +3,8 @@ import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { LanguagePicker, ThemeToggle } from "@/components/controls";
 import { fontFamily } from "@/lib/fonts";
+import { LayoutDashboard, Link2, Video, FileText, ArrowRight } from "lucide-react";
+import { Icon } from "@/components/ui/icon";
 
 export default function Home() {
   const { user } = useAuth();
@@ -24,10 +26,7 @@ export default function Home() {
                 to="/dash"
                 className="flex items-center gap-1.5 border border-foreground bg-foreground px-4 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-90"
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <rect x="3" y="3" width="7" height="9" /><rect x="14" y="3" width="7" height="5" />
-                  <rect x="14" y="12" width="7" height="9" /><rect x="3" y="16" width="7" height="5" />
-                </svg>
+                <Icon as={LayoutDashboard} size="sm" />
                 {tr("nav.dashboard")}
               </Link>
             ) : (
@@ -42,9 +41,7 @@ export default function Home() {
                   to="/register"
                   className="flex items-center gap-1.5 border border-foreground bg-foreground px-4 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-90"
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
-                  </svg>
+                  <Icon as={Link2} size="sm" />
                   {tr("nav.cta")}
                 </Link>
               </>
@@ -106,18 +103,20 @@ export default function Home() {
                 <div className="mt-6 flex flex-col gap-2">
                   <div className="flex items-center justify-between border border-border bg-card px-4 py-3 transition-colors hover:border-foreground">
                     <span className="text-xs font-medium text-foreground">My website</span>
-                    <span className="text-muted-foreground">
-                      <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                        <path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
-                      </svg>
-                    </span>
+                    <Icon as={ArrowRight} size="sm" className="text-muted-foreground" />
                   </div>
                   <div className="border border-border bg-card px-4 py-3">
-                    <p className="text-xs font-medium text-foreground">Latest video</p>
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                      <Icon as={Video} size="sm" className="text-muted-foreground" />
+                      Latest video
+                    </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">Watch on YouTube</p>
                   </div>
                   <div className="border border-border bg-card px-4 py-3">
-                    <p className="text-xs font-medium text-foreground">Media Kit (PDF)</p>
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                      <Icon as={FileText} size="sm" className="text-muted-foreground" />
+                      Media Kit (PDF)
+                    </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">Download</p>
                   </div>
                 </div>

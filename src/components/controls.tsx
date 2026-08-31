@@ -1,14 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { LANGS, useI18n, useTheme, type Lang } from "@/lib/i18n";
-
-export function GlobeIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg className={className} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
-    </svg>
-  );
-}
+import { Globe, Moon, Sun, Check } from "lucide-react";
+import { LANGS, useI18n, useTheme } from "@/lib/i18n";
+import { Icon } from "@/components/ui/icon";
 
 export function LanguagePicker({ align = "left" }: { align?: "left" | "right" }) {
   const { lang, setLang } = useI18n();
@@ -32,7 +25,7 @@ export function LanguagePicker({ align = "left" }: { align?: "left" | "right" })
         aria-label="Language"
         className="flex items-center gap-1.5 border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
       >
-        <GlobeIcon />
+        <Icon as={Globe} size="sm" />
         <span aria-hidden="true">{current.flag}</span>
         <span>{current.short}</span>
       </button>
@@ -55,7 +48,7 @@ export function LanguagePicker({ align = "left" }: { align?: "left" | "right" })
             >
               <span aria-hidden="true">{l.flag}</span>
               <span>{l.short}</span>
-              {l.code === lang && <span className="ml-auto">✓</span>}
+              {l.code === lang && <Icon as={Check} size="sm" className="ml-auto" />}
             </button>
           ))}
         </div>
@@ -70,9 +63,9 @@ export function ThemeToggle() {
     <button
       onClick={toggle}
       aria-label="Toggle theme"
-      className="border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+      className="border border-border px-2.5 py-1.5 text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
     >
-      {light ? "☾" : "☀"}
+      <Icon as={light ? Moon : Sun} size="sm" />
     </button>
   );
 }

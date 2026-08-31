@@ -1,5 +1,7 @@
 import type { BioItem } from "@/lib/types";
 import { ItemBody, youtubeId, xPostId } from "@/components/item-embeds";
+import { ArrowRight, FileDown } from "lucide-react";
+import { Icon } from "@/components/ui/icon";
 
 export function BioItemRow({
   item,
@@ -47,9 +49,7 @@ export function BioItemRow({
             )}
             <span className="text-xs text-muted-foreground">Download</span>
           </span>
-          <span className="text-muted-foreground transition-transform duration-150 group-hover:translate-y-0.5">
-            ↓
-          </span>
+          <Icon as={FileDown} className="text-muted-foreground transition-transform duration-150 group-hover:translate-y-0.5 group-hover:text-foreground" />
         </a>
       </div>
     );
@@ -86,17 +86,10 @@ export function BioItemRow({
           <span className="mt-0.5 text-xs text-muted-foreground">{item.description}</span>
         )}
       </span>
-      <span className="ml-3 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-foreground">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path
-            d="M3 7h8M7 3l4 4-4 4"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="square"
-            strokeLinejoin="miter"
-          />
-        </svg>
-      </span>
+      <Icon
+        as={ArrowRight}
+        className="ml-3 text-muted-foreground transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-foreground"
+      />
     </a>
   );
 }
