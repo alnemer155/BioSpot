@@ -28,10 +28,6 @@ export default function Login() {
       const email = isEmail(identifier) ? identifier : null;
 
       if (!email) {
-        // Username login: look up email first via a simple heuristic
-        // We try signing in with the identifier as-is first (some users might use email)
-        // If that fails, we tell users to use their email
-        // For proper username→email lookup, we need a server endpoint
         setError("Please use your email address to sign in. Username login will be available soon.");
         setBusy(false);
         return;
@@ -45,7 +41,6 @@ export default function Login() {
 
       await refresh();
 
-      // Check if password change is required
       const me = await api.me();
       if (me.user.must_change_password) {
         navigate("/change-password");
@@ -64,21 +59,17 @@ export default function Login() {
     <main className="flex min-h-screen flex-col items-center px-5 py-16 sm:py-24" dir={rtl ? "rtl" : "ltr"}>
       <div className="w-full max-w-sm animate-fade-up">
         <div className="mb-10 flex items-center justify-center gap-2">
-          <Link to="/" className="text-sm font-semibold tracking-tight text-foreground">
-            LinkTroo
-          </Link>
+          <Link to="/" className="text-sm font-semibold tracking-tight text-foreground">LinkTroo</Link>
           <ThemeToggle />
           <LanguagePicker />
         </div>
 
-        <h1 className="text-lg font-semibold tracking-tight text-foreground">
-          Sign In
-        </h1>
-        <p className="mt-1 text-xs text-muted-foreground">Welcome back to LinkTroo.</p>
+        <h1 className="text-lg font-semibold tracking-tight text-foreground">{tr("auth2.login.title")}</h1>
+        <p className="mt-1 text-xs text-muted-foreground">{tr("auth2.login.sub")}</p>
 
         <form onSubmit={submit} className="mt-8 space-y-4">
           <label className="block space-y-1.5">
-            <span className="text-xs text-muted-foreground">Email</span>
+            <span className="text-xs text-muted-foreground">{tr("auth2.login.email")}</span>
             <input
               type="text"
               value={identifier}
@@ -90,7 +81,7 @@ export default function Login() {
           </label>
 
           <label className="block space-y-1.5">
-            <span className="text-xs text-muted-foreground">{tr("auth.password")}</span>
+            <span className="text-xs text-muted-foreground">{tr("auth2.login.password")}</span>
             <input
               type="password"
               value={password}
@@ -110,14 +101,14 @@ export default function Login() {
             disabled={!identifier || !password || busy}
             className="w-full border border-foreground bg-foreground py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            {busy ? "Signing in..." : "Sign In"}
+            {busy ? tr("auth2.login.signing") : tr("auth2.login.submit")}
           </button>
         </form>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Don't have an account?{" "}
+          {tr("auth2.login.noAccount")}{" "}
           <Link to="/register" className="text-foreground underline-offset-2 hover:underline">
-            Create Account
+            {tr("auth2.login.create")}
           </Link>
         </p>
       </div>

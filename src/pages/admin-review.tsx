@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useI18n } from "@/lib/i18n";
 import type { AccountRequest, AccountRequestReview } from "@/lib/types";
-import { ThemeToggle } from "@/components/controls";
+import { ThemeToggle, LanguagePicker } from "@/components/controls";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "text-yellow-600 dark:text-yellow-400",
@@ -25,6 +26,7 @@ export default function AdminReview() {
   const { requestId } = useParams<{ requestId: string }>();
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { tr, rtl } = useI18n();
   const [data, setData] = useState<{ request: AccountRequest; reviews: AccountRequestReview[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState("");
@@ -50,7 +52,6 @@ export default function AdminReview() {
       if (action === "approve") await api.adminApprove(requestId, notes || undefined);
       else if (action === "reject") await api.adminReject(requestId, notes || undefined);
       else await api.adminEscalate(requestId, notes || undefined);
-      // Reload
       const updated = await api.adminGetRequest(requestId);
       setData(updated);
       setNotes("");
@@ -73,7 +74,7 @@ export default function AdminReview() {
   const { request: r, reviews } = data;
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen" dir={rtl ? "rtl" : "ltr"}>
       <header className="border-b border-border px-5 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link to="/admin" className="text-sm font-semibold text-foreground">LinkTroo</Link>
@@ -82,11 +83,11 @@ export default function AdminReview() {
         <div className="flex items-center gap-3">
           <Link to="/admin" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Back to List</Link>
           <ThemeToggle />
+          <LanguagePicker />
         </div>
       </header>
 
       <div className="mx-auto max-w-2xl px-5 py-6 space-y-6">
-        {/* Header */}
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold text-foreground">@{r.username}</h1>
@@ -95,7 +96,6 @@ export default function AdminReview() {
           <p className="text-xs text-muted-foreground mt-1">Request ID: {r.id}</p>
         </div>
 
-        {/* Details */}
         <div className="border border-border p-4 space-y-3">
           <h2 className="text-xs font-medium text-foreground">Account Details</h2>
           <div className="grid grid-cols-2 gap-2 text-xs">
@@ -123,7 +123,6 @@ export default function AdminReview() {
           )}
         </div>
 
-        {/* AI Analysis */}
         <div className="border border-border p-4 space-y-3">
           <h2 className="text-xs font-medium text-foreground">Auth-2.0 Analysis</h2>
           <div className="grid grid-cols-3 gap-2 text-xs">
@@ -147,7 +146,6 @@ export default function AdminReview() {
           )}
         </div>
 
-        {/* Reviewer Notes */}
         {r.reviewer_notes && (
           <div className="border border-border p-4 space-y-2">
             <h2 className="text-xs font-medium text-foreground">Reviewer Notes</h2>
@@ -155,7 +153,6 @@ export default function AdminReview() {
           </div>
         )}
 
-        {/* Actions */}
         {r.status !== "approved" && r.status !== "rejected" && (
           <div className="border border-border p-4 space-y-3">
             <h2 className="text-xs font-medium text-foreground">Actions</h2>
@@ -192,7 +189,6 @@ export default function AdminReview() {
           </div>
         )}
 
-        {/* Review History */}
         {reviews.length > 0 && (
           <div className="border border-border p-4 space-y-3">
             <h2 className="text-xs font-medium text-foreground">Review History</h2>
