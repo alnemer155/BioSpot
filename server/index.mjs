@@ -561,15 +561,16 @@ app.post("/api/auth2/admin/make-admin", async (req, res) => {
 });
 
 const dist = path.join(__dirname, "..", "dist");
-if (fs.existsSync(dist)) {
-  app.use(express.static(dist));
-  app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(dist, "index.html")));
-}
 
 // ─── Legal site (served at /legal/*) ──────────────────────────────────────
 const legalDir = path.join(__dirname, "..", "legal");
 if (fs.existsSync(legalDir)) {
   app.use("/legal", express.static(legalDir));
+}
+
+if (fs.existsSync(dist)) {
+  app.use(express.static(dist));
+  app.get(/^\/(?!api\/|legal\/).*/, (req, res) => res.sendFile(path.join(dist, "index.html")));
 }
 
 const port = Number(process.env.PORT || 8787);
