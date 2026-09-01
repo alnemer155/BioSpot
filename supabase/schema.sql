@@ -1,7 +1,8 @@
 -- LinkTroo schema — run once in Supabase SQL Editor.
+-- NOTE: user_id no longer references auth.users since we use Better Auth.
 create table if not exists public.pages (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null,
   slug text unique not null,
   name text not null default 'Your Name',
   title text,

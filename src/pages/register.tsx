@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { authClient } from "@/lib/auth-client";
 import { api } from "@/lib/api";
 import { supabaseConfigured } from "@/utils/supabase";
 import { useAuth } from "@/lib/auth";
@@ -25,20 +26,16 @@ export default function Register() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!valid || !supabaseConfigured) return;
+    if (!valid) return;
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const { error: signUpError } = await authClient.signUp.email({
+        email,
+        password,
+        name: uname,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Signup failed");
-      if (data.session?.access_token) {
-        localStorage.setItem("linktroo-session", JSON.stringify(data.session));
-      }
+      if (signUpError) throw new Error(signUpError.message || "Signup failed");
       await api.setUsername(uname);
       await refresh();
       navigate("/dash");
@@ -64,13 +61,6 @@ export default function Register() {
           {tr("auth.create.title")}
         </h1>
         <p className="mt-1 text-xs text-muted-foreground">{tr("auth.create.sub")}</p>
-
-        {!supabaseConfigured && (
-          <p className="mt-6 border border-destructive px-3 py-2 text-xs text-destructive">
-            Supabase is not configured. Set VITE_SUPABASE_URL and
-            VITE_SUPABASE_PUBLISHABLE_KEY, then rebuild.
-          </p>
-        )}
 
         <form onSubmit={submit} className="mt-8 space-y-4">
           <label className="block space-y-1.5">
@@ -135,7 +125,7 @@ export default function Register() {
 
           <button
             type="submit"
-            disabled={!valid || busy || !supabaseConfigured}
+            disabled={!valid || busy}
             className="w-full border border-foreground bg-foreground py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
           >
             {busy ? tr("auth.creating") : tr("auth.create.submit")}

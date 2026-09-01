@@ -1,18 +1,6 @@
-async function authHeaders(): Promise<Record<string, string>> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  try {
-    const raw = localStorage.getItem("linktroo-session");
-    if (raw) {
-      const s = JSON.parse(raw);
-      if (s?.access_token) headers.Authorization = `Bearer ${s.access_token}`;
-    }
-  } catch {}
-  return headers;
-}
-
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const headers = await authHeaders();
-  const res = await fetch(url, { headers, ...options });
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const res = await fetch(url, { credentials: "include", headers, ...options });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error((data as { error?: string }).error || "Something went wrong.");
@@ -43,9 +31,9 @@ export interface StatsResult {
 }
 
 export const api = {
-  me: () => request<{ user: import("./types").User }>("/api/auth/me"),
+  me: () => request<{ user: import("./types").User }>("/api/me"),
   setUsername: (username: string) =>
-    request<{ user: import("./types").User }>("/api/auth/username", {
+    request<{ user: import("./types").User }>("/api/set-username", {
       method: "POST",
       body: JSON.stringify({ username }),
     }),
@@ -95,16 +83,12 @@ export const api = {
 };
 
 export async function uploadFile(_userId: string, file: File): Promise<string> {
-  const raw = localStorage.getItem("linktroo-session");
-  if (!raw) throw new Error("Not authenticated.");
-  const s = JSON.parse(raw);
-  const token = s?.access_token;
-  if (!token) throw new Error("Not authenticated.");
   const arrayBuf = await file.arrayBuffer();
   const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuf)));
   const res = await fetch("/api/upload", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ file: base64, filename: file.name, contentType: file.type }),
   });
   const data = await res.json().catch(() => ({}));

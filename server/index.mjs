@@ -1,9 +1,15 @@
-import "dotenv/config";
-import express from "express";
-import fs from "node:fs";
-import path from "node:path";
+import dotenv from "dotenv";
 import { fileURLToPath } from "node:url";
-import {
+import path from "node:path";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, "..", ".env") });
+
+const express = (await import("express")).default;
+const cors = (await import("cors")).default;
+const fs = (await import("node:fs")).default;
+const { toNodeHandler, fromNodeHeaders } = await import("better-auth/node");
+const { auth } = await import("./auth.js");
+const {
   makeSupa,
   ensureDefaultPage,
   getPageById,
@@ -15,122 +21,80 @@ import {
   addEvent,
   getStats,
   SLUG_RE,
-} from "./_lib/supa.js";
-import { verifyToken, getAdminClient } from "./_lib/auth.js";
+} = await import("./_lib/supa.js");
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "http://localhost:8787", "https://linktroo.cc"],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 app.use(express.json({ limit: "2mb" }));
 
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
-  if (req.method === "OPTIONS") return res.sendStatus(204);
-  next();
-});
-
-const SUPA_URL = process.env.SUPABASE_URL;
-const SUPA_PUB = process.env.SUPABASE_PUBLISHABLE_KEY;
-const SUPA_SEC = process.env.SUPABASE_SECRET_KEY;
-
-app.post("/api/auth/signup", async (req, res) => {
+async function getSessionUser(req) {
   try {
-    const { email, password } = req.body;
-    const r = await fetch(`${SUPA_URL}/auth/v1/signup`, {
-      method: "POST",
-      headers: { apikey: SUPA_PUB, "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+    const session = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
     });
-    const text = await r.text();
-    const data = text ? JSON.parse(text) : {};
-    console.log("[signup]", r.status, data.access_token ? "OK" : JSON.stringify(data).slice(0, 200));
-    if (!r.ok) return res.status(r.status).json({ error: data.msg || data.error_description || "Signup failed" });
-    res.json({ session: { access_token: data.access_token, refresh_token: data.refresh_token }, user: data.user });
-  } catch (e) {
-    console.error("[signup] crash:", e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.post("/api/auth/signin", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const r = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`, {
-      method: "POST",
-      headers: { apikey: SUPA_PUB, "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    const text = await r.text();
-    const data = text ? JSON.parse(text) : {};
-    console.log("[signin]", r.status, data.access_token ? "OK" : JSON.stringify(data).slice(0, 200));
-    if (!r.ok) return res.status(r.status).json({ error: data.msg || data.error_description || "Signin failed" });
-    res.json({ session: { access_token: data.access_token, refresh_token: data.refresh_token }, user: data.user });
-  } catch (e) {
-    console.error("[signin] crash:", e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.post("/api/auth/logout", async (req, res) => {
-  try {
-    const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-    if (token) {
-      await fetch(`${SUPA_URL}/auth/v1/logout`, {
-        method: "POST",
-        headers: { apikey: SUPA_PUB, Authorization: `Bearer ${token}` },
-      }).catch(() => {});
-    }
-    res.json({ ok: true });
+    if (!session?.user) return null;
+    return session;
   } catch {
-    res.json({ ok: true });
+    return null;
   }
-});
+}
 
-async function auth(req) {
-  const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  const result = await verifyToken(token);
-  if (!result) return null;
-  const supa = makeSupa(null, result.token);
-  return { supa, userClaims: result.userClaims, token: result.token };
+async function requireAuth(req, res) {
+  const session = await getSessionUser(req);
+  if (!session) {
+    res.status(401).json({ error: "Not authenticated" });
+    return null;
+  }
+  return session;
 }
 
 const SHORT_USERNAME_LIMIT = 50;
 
-app.post("/api/auth/username", async (req, res) => {
+app.post("/api/set-username", async (req, res) => {
   try {
-    const ctx = await auth(req);
-    if (!ctx) return res.status(401).json({ error: "Not authenticated" });
+    const session = await requireAuth(req, res);
+    if (!session) return;
     const slug = String(req.body?.username || "").toLowerCase().trim();
     if (!SLUG_RE.test(slug)) return res.status(400).json({ error: "Invalid username." });
 
     if (slug.length < 3) {
-      const adminSupa = getAdminClient();
+      const adminSupa = makeSupa(null, null, true);
       const { count } = await adminSupa.from("pages").select("id", { count: "exact", head: true }).eq("is_default", true);
       if ((count || 0) >= SHORT_USERNAME_LIMIT) {
         return res.status(400).json({ error: `Short usernames (2 chars) are only available for the first ${SHORT_USERNAME_LIMIT} users.` });
       }
     }
 
-    const checkSupa = getAdminClient();
+    const checkSupa = makeSupa(null, null, true);
     const { data: existing } = await checkSupa.from("pages").select("id").eq("slug", slug).maybeSingle();
     if (existing) return res.status(409).json({ error: "This username is already taken." });
 
-    const current = await ensureDefaultPage(ctx.supa, ctx.userClaims.id);
-    await ctx.supa.from("pages").update({ slug, is_default: true }).eq("id", current.id);
-    res.json({ user: { id: ctx.userClaims.id, slug } });
+    const userSupa = makeSupa(null, null, true);
+    const page = await ensureDefaultPage(userSupa, session.user.id);
+    await userSupa.from("pages").update({ slug, is_default: true }).eq("id", page.id);
+    res.json({ user: { id: session.user.id, slug } });
   } catch (e) {
     console.error("[username] error:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
-app.get("/api/auth/me", async (req, res) => {
+app.get("/api/me", async (req, res) => {
   try {
-    const ctx = await auth(req);
-    if (!ctx) return res.status(401).json({ error: "Not authenticated" });
-    const page = await ensureDefaultPage(ctx.supa, ctx.userClaims.id);
-    res.json({ user: { id: ctx.userClaims.id, email: ctx.userClaims.email, page_id: page.id, slug: page.slug } });
+    const session = await getSessionUser(req);
+    if (!session) return res.status(401).json({ error: "Not authenticated" });
+    const supa = makeSupa(null, null, true);
+    const page = await ensureDefaultPage(supa, session.user.id);
+    res.json({ user: { id: session.user.id, email: session.user.email, page_id: page.id, slug: page.slug } });
   } catch (e) {
     console.error("[me] error:", e.message);
     res.status(500).json({ error: e.message });
@@ -139,9 +103,10 @@ app.get("/api/auth/me", async (req, res) => {
 
 app.get("/api/pages", async (req, res) => {
   try {
-    const ctx = await auth(req);
-    if (!ctx) return res.status(401).json({ error: "Not authenticated" });
-    res.json({ pages: await listPages(ctx.supa, ctx.userClaims.id) });
+    const session = await requireAuth(req, res);
+    if (!session) return;
+    const supa = makeSupa(null, null, true);
+    res.json({ pages: await listPages(supa, session.user.id) });
   } catch (e) {
     console.error("[pages] error:", e.message);
     res.status(500).json({ error: e.message });
@@ -150,13 +115,14 @@ app.get("/api/pages", async (req, res) => {
 
 app.get("/api/bio", async (req, res) => {
   try {
-    const ctx = await auth(req);
-    if (!ctx) return res.status(401).json({ error: "Not authenticated" });
+    const session = await requireAuth(req, res);
+    if (!session) return;
+    const supa = makeSupa(null, null, true);
     const page = req.query.page
-      ? await getPageById(ctx.supa, String(req.query.page))
-      : await ensureDefaultPage(ctx.supa, ctx.userClaims.id);
-    if (!page || page.user_id !== ctx.userClaims.id) return res.status(403).json({ error: "Page not found." });
-    res.json({ profile: page, items: await getItems(ctx.supa, page.id) });
+      ? await getPageById(supa, String(req.query.page))
+      : await ensureDefaultPage(supa, session.user.id);
+    if (!page || page.user_id !== session.user.id) return res.status(403).json({ error: "Page not found." });
+    res.json({ profile: page, items: await getItems(supa, page.id) });
   } catch (e) {
     console.error("[bio] error:", e.message);
     res.status(500).json({ error: e.message });
@@ -165,22 +131,23 @@ app.get("/api/bio", async (req, res) => {
 
 app.put("/api/bio", async (req, res) => {
   try {
-    const ctx = await auth(req);
-    if (!ctx) return res.status(401).json({ error: "Not authenticated" });
+    const session = await requireAuth(req, res);
+    if (!session) return;
+    const supa = makeSupa(null, null, true);
     const page = req.query.page
-      ? await getPageById(ctx.supa, String(req.query.page))
-      : await ensureDefaultPage(ctx.supa, ctx.userClaims.id);
-    if (!page || page.user_id !== ctx.userClaims.id) return res.status(403).json({ error: "Page not found." });
+      ? await getPageById(supa, String(req.query.page))
+      : await ensureDefaultPage(supa, session.user.id);
+    if (!page || page.user_id !== session.user.id) return res.status(403).json({ error: "Page not found." });
     const { profile, items } = req.body || {};
     if (!profile || !Array.isArray(items)) return res.status(400).json({ error: "Invalid payload." });
     const patch = {};
     for (const f of ["name", "title", "bio", "avatar_url", "font", "translations", "style"]) {
       if (f in profile) patch[f] = profile[f];
     }
-    await savePage(ctx.supa, page.id, patch);
-    await replaceItems(ctx.supa, page.id, items);
-    const fresh = await getPageById(ctx.supa, page.id);
-    res.json({ profile: fresh, items: await getItems(ctx.supa, page.id) });
+    await savePage(supa, page.id, patch);
+    await replaceItems(supa, page.id, items);
+    const fresh = await getPageById(supa, page.id);
+    res.json({ profile: fresh, items: await getItems(supa, page.id) });
   } catch (e) {
     console.error("[bio:put] error:", e.message);
     res.status(500).json({ error: e.message });
@@ -188,19 +155,20 @@ app.put("/api/bio", async (req, res) => {
 });
 
 app.post("/api/upload", async (req, res) => {
-  const ctx = await auth(req);
-  if (!ctx) return res.status(401).json({ error: "Not authenticated" });
   try {
+    const session = await requireAuth(req, res);
+    if (!session) return;
+    const supa = makeSupa(null, null, true);
     const { file, filename } = req.body || {};
     if (!file || !filename) return res.status(400).json({ error: "Missing file data." });
     const buf = Buffer.from(file, "base64");
     const safeName = filename.replace(/[^\w.\-]/g, "_");
-    const filePath = `${ctx.userClaims.id}/${Date.now()}-${safeName}`;
-    const { error } = await ctx.supa.storage.from("files").upload(filePath, buf, {
+    const filePath = `${session.user.id}/${Date.now()}-${safeName}`;
+    const { error } = await supa.storage.from("files").upload(filePath, buf, {
       contentType: req.body.contentType || "application/octet-stream",
     });
     if (error) return res.status(500).json({ error: error.message });
-    const { data } = ctx.supa.storage.from("files").getPublicUrl(filePath);
+    const { data } = supa.storage.from("files").getPublicUrl(filePath);
     res.json({ url: data.publicUrl });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -225,13 +193,14 @@ app.post("/api/u/:username", async (req, res) => {
 
 app.get("/api/stats", async (req, res) => {
   try {
-    const ctx = await auth(req);
-    if (!ctx) return res.status(401).json({ error: "Not authenticated" });
+    const session = await requireAuth(req, res);
+    if (!session) return;
+    const supa = makeSupa(null, null, true);
     const page = req.query.page
-      ? await getPageById(ctx.supa, String(req.query.page))
-      : await ensureDefaultPage(ctx.supa, ctx.userClaims.id);
-    if (!page || page.user_id !== ctx.userClaims.id) return res.status(403).json({ error: "Page not found." });
-    res.json(await getStats(ctx.supa, page.id));
+      ? await getPageById(supa, String(req.query.page))
+      : await ensureDefaultPage(supa, session.user.id);
+    if (!page || page.user_id !== session.user.id) return res.status(403).json({ error: "Page not found." });
+    res.json(await getStats(supa, page.id));
   } catch (e) {
     console.error("[stats] error:", e.message);
     res.status(500).json({ error: e.message });
@@ -239,6 +208,9 @@ app.get("/api/stats", async (req, res) => {
 });
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
+
+app.all("/api/auth/*", toNodeHandler(auth));
+app.all("/api/auth/*splat", toNodeHandler(auth));
 
 const dist = path.join(__dirname, "..", "dist");
 if (fs.existsSync(dist)) {

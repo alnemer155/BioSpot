@@ -1,10 +1,24 @@
-import { createContextClient, createAdminClient } from "@supabase/server/core";
+import { createContextClient } from "@supabase/server/core";
 import { createClient } from "@supabase/supabase-js";
 
-// Server uses @supabase/server (JWKS), Cloudflare uses @supabase/supabase-js directly.
-// This file is the server entry — it creates clients via @supabase/server.
+let _adminClient = null;
 
-export function makeSupa(_env, token) {
+function getAdminClient() {
+  if (!_adminClient) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SECRET_KEY;
+    if (!url || !key) throw new Error("SUPABASE_URL and SUPABASE_SECRET_KEY are required");
+    _adminClient = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+  return _adminClient;
+}
+
+export function makeSupa(_env, token, admin = false) {
+  if (admin) {
+    return getAdminClient();
+  }
   if (token) {
     return createContextClient({ auth: { token } });
   }

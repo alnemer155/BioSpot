@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { supabaseConfigured } from "@/utils/supabase";
+import { authClient } from "@/lib/auth-client";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { LanguagePicker, ThemeToggle } from "@/components/controls";
@@ -16,20 +16,14 @@ export default function Login() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!supabaseConfigured) return;
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/auth/signin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const { error: signInError } = await authClient.signIn.email({
+        email,
+        password,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Signin failed");
-      if (data.session?.access_token) {
-        localStorage.setItem("linktroo-session", JSON.stringify(data.session));
-      }
+      if (signInError) throw new Error(signInError.message || "Signin failed");
       await refresh();
       navigate("/dash");
     } catch (err) {
@@ -54,13 +48,6 @@ export default function Login() {
           {tr("auth.signin.title")}
         </h1>
         <p className="mt-1 text-xs text-muted-foreground">{tr("auth.signin.sub")}</p>
-
-        {!supabaseConfigured && (
-          <p className="mt-6 border border-destructive px-3 py-2 text-xs text-destructive">
-            Supabase is not configured. Set VITE_SUPABASE_URL and
-            VITE_SUPABASE_PUBLISHABLE_KEY, then rebuild.
-          </p>
-        )}
 
         <form onSubmit={submit} className="mt-8 space-y-4">
           <label className="block space-y-1.5">
@@ -93,7 +80,7 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={!email || !password || busy || !supabaseConfigured}
+            disabled={!email || !password || busy}
             className="w-full border border-foreground bg-foreground py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
           >
             {busy ? tr("auth.signingin") : tr("auth.signin.submit")}
