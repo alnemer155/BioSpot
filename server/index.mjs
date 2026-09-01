@@ -25,14 +25,30 @@ const {
 
 const app = express();
 
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://localhost:8787",
+  "https://linktroo.cc",
+  "https://www.linktroo.cc",
+];
+
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:8787", "https://linktroo.cc", "https://www.linktroo.cc", "https://biospot-production.up.railway.app"],
+    origin: (origin, callback) => {
+      if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+app.all("/api/auth/*", toNodeHandler(auth));
+app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json({ limit: "2mb" }));
 
@@ -67,18 +83,18 @@ app.post("/api/set-username", async (req, res) => {
     if (!SLUG_RE.test(slug)) return res.status(400).json({ error: "Invalid username." });
 
     if (slug.length < 3) {
-      const adminSupa = makeSupa(null, null, true);
+      const adminSupa = await makeSupa(null, null, true);
       const { count } = await adminSupa.from("pages").select("id", { count: "exact", head: true }).eq("is_default", true);
       if ((count || 0) >= SHORT_USERNAME_LIMIT) {
         return res.status(400).json({ error: `Short usernames (2 chars) are only available for the first ${SHORT_USERNAME_LIMIT} users.` });
       }
     }
 
-    const checkSupa = makeSupa(null, null, true);
+    const checkSupa = await makeSupa(null, null, true);
     const { data: existing } = await checkSupa.from("pages").select("id").eq("slug", slug).maybeSingle();
     if (existing) return res.status(409).json({ error: "This username is already taken." });
 
-    const userSupa = makeSupa(null, null, true);
+    const userSupa = await makeSupa(null, null, true);
     const page = await ensureDefaultPage(userSupa, session.user.id);
     await userSupa.from("pages").update({ slug, is_default: true }).eq("id", page.id);
     res.json({ user: { id: session.user.id, slug } });
@@ -92,7 +108,7 @@ app.get("/api/me", async (req, res) => {
   try {
     const session = await getSessionUser(req);
     if (!session) return res.status(401).json({ error: "Not authenticated" });
-    const supa = makeSupa(null, null, true);
+    const supa = await makeSupa(null, null, true);
     const page = await ensureDefaultPage(supa, session.user.id);
     res.json({ user: { id: session.user.id, email: session.user.email, page_id: page.id, slug: page.slug } });
   } catch (e) {
@@ -105,7 +121,7 @@ app.get("/api/pages", async (req, res) => {
   try {
     const session = await requireAuth(req, res);
     if (!session) return;
-    const supa = makeSupa(null, null, true);
+    const supa = await makeSupa(null, null, true);
     res.json({ pages: await listPages(supa, session.user.id) });
   } catch (e) {
     console.error("[pages] error:", e.message);
@@ -117,7 +133,7 @@ app.get("/api/bio", async (req, res) => {
   try {
     const session = await requireAuth(req, res);
     if (!session) return;
-    const supa = makeSupa(null, null, true);
+    const supa = await makeSupa(null, null, true);
     const page = req.query.page
       ? await getPageById(supa, String(req.query.page))
       : await ensureDefaultPage(supa, session.user.id);
@@ -133,7 +149,7 @@ app.put("/api/bio", async (req, res) => {
   try {
     const session = await requireAuth(req, res);
     if (!session) return;
-    const supa = makeSupa(null, null, true);
+    const supa = await makeSupa(null, null, true);
     const page = req.query.page
       ? await getPageById(supa, String(req.query.page))
       : await ensureDefaultPage(supa, session.user.id);
@@ -158,7 +174,7 @@ app.post("/api/upload", async (req, res) => {
   try {
     const session = await requireAuth(req, res);
     if (!session) return;
-    const supa = makeSupa(null, null, true);
+    const supa = await makeSupa(null, null, true);
     const { file, filename } = req.body || {};
     if (!file || !filename) return res.status(400).json({ error: "Missing file data." });
     const buf = Buffer.from(file, "base64");
@@ -176,14 +192,14 @@ app.post("/api/upload", async (req, res) => {
 });
 
 app.get("/api/u/:username", async (req, res) => {
-  const supa = makeSupa();
+  const supa = await makeSupa();
   const page = await getPageBySlug(supa, String(req.params.username).toLowerCase().replace(/^@/, ""));
   if (!page) return res.status(404).json({ error: "This LinkTroo page does not exist." });
   res.json({ profile: page, items: await getItems(supa, page.id, true) });
 });
 
 app.post("/api/u/:username", async (req, res) => {
-  const supa = makeSupa();
+  const supa = await makeSupa();
   const page = await getPageBySlug(supa, String(req.params.username).toLowerCase().replace(/^@/, ""));
   if (!page) return res.status(404).json({ error: "This LinkTroo page does not exist." });
   const b = req.body || {};
@@ -195,7 +211,7 @@ app.get("/api/stats", async (req, res) => {
   try {
     const session = await requireAuth(req, res);
     if (!session) return;
-    const supa = makeSupa(null, null, true);
+    const supa = await makeSupa(null, null, true);
     const page = req.query.page
       ? await getPageById(supa, String(req.query.page))
       : await ensureDefaultPage(supa, session.user.id);
@@ -208,9 +224,6 @@ app.get("/api/stats", async (req, res) => {
 });
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
-
-app.all("/api/auth/*", toNodeHandler(auth));
-app.all("/api/auth/*splat", toNodeHandler(auth));
 
 const dist = path.join(__dirname, "..", "dist");
 if (fs.existsSync(dist)) {

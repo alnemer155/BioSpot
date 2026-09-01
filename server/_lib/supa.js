@@ -1,7 +1,14 @@
-import { createContextClient } from "@supabase/server/core";
 import { createClient } from "@supabase/supabase-js";
 
 let _adminClient = null;
+let _createContextClient = null;
+
+async function loadSupaServer() {
+  if (!_createContextClient) {
+    const mod = await import("@supabase/server/core");
+    _createContextClient = mod.createContextClient;
+  }
+}
 
 function getAdminClient() {
   if (!_adminClient) {
@@ -15,22 +22,15 @@ function getAdminClient() {
   return _adminClient;
 }
 
-export function makeSupa(_env, token, admin = false) {
+export async function makeSupa(_env, token, admin = false) {
   if (admin) {
     return getAdminClient();
   }
+  await loadSupaServer();
   if (token) {
-    return createContextClient({ auth: { token } });
+    return _createContextClient({ auth: { token } });
   }
-  return createContextClient();
-}
-
-// Fallback: create a raw client using env vars (for admin ops or public queries)
-export function makeRawSupa(env, token) {
-  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY || env.SUPABASE_PUBLISHABLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-  });
+  return _createContextClient();
 }
 
 export const SLUG_RE = /^[a-z0-9_-]{2,30}$/;
