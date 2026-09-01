@@ -10,6 +10,8 @@ const dbPath = path.join(__dirname, "..", "auth.db");
 const db = new Database(dbPath);
 db.pragma("foreign_keys = ON");
 
+export { db };
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS "user" (
     "id"            text NOT NULL PRIMARY KEY,

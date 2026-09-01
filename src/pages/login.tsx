@@ -1,30 +1,57 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { authClient } from "@/lib/auth-client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { LanguagePicker, ThemeToggle } from "@/components/controls";
+
+function isEmail(v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
 
 export default function Login() {
   const navigate = useNavigate();
   const { refresh } = useAuth();
   const { tr, rtl } = useI18n();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!identifier || !password) return;
     setBusy(true);
     setError(null);
     try {
+      const email = isEmail(identifier) ? identifier : null;
+
+      if (!email) {
+        // Username login: look up email first via a simple heuristic
+        // We try signing in with the identifier as-is first (some users might use email)
+        // If that fails, we tell users to use their email
+        // For proper username→email lookup, we need a server endpoint
+        setError("Please use your email address to sign in. Username login will be available soon.");
+        setBusy(false);
+        return;
+      }
+
       const { error: signInError } = await authClient.signIn.email({
         email,
         password,
       });
-      if (signInError) throw new Error(signInError.message || "Signin failed");
+      if (signInError) throw new Error(signInError.message || "Sign in failed");
+
       await refresh();
+
+      // Check if password change is required
+      const me = await api.me();
+      if (me.user.must_change_password) {
+        navigate("/change-password");
+        return;
+      }
+
       navigate("/dash");
     } catch (err) {
       setError((err as Error).message);
@@ -45,19 +72,19 @@ export default function Login() {
         </div>
 
         <h1 className="text-lg font-semibold tracking-tight text-foreground">
-          {tr("auth.signin.title")}
+          Sign In
         </h1>
-        <p className="mt-1 text-xs text-muted-foreground">{tr("auth.signin.sub")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">Welcome back to LinkTroo.</p>
 
         <form onSubmit={submit} className="mt-8 space-y-4">
           <label className="block space-y-1.5">
-            <span className="text-xs text-muted-foreground">{tr("auth.email")}</span>
+            <span className="text-xs text-muted-foreground">Email</span>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               placeholder="you@example.com"
-              autoComplete="email"
+              autoComplete="username"
               className="input-base"
             />
           </label>
@@ -80,17 +107,17 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={!email || !password || busy}
+            disabled={!identifier || !password || busy}
             className="w-full border border-foreground bg-foreground py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            {busy ? tr("auth.signingin") : tr("auth.signin.submit")}
+            {busy ? "Signing in..." : "Sign In"}
           </button>
         </form>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          {tr("auth.noAccount")}{" "}
+          Don't have an account?{" "}
           <Link to="/register" className="text-foreground underline-offset-2 hover:underline">
-            {tr("auth.create.submit")}
+            Create Account
           </Link>
         </p>
       </div>

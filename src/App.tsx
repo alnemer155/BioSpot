@@ -2,8 +2,12 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
 import Home from "@/pages/home";
 import Register from "@/pages/register";
+import RegisterStatus from "@/pages/register-status";
 import Login from "@/pages/login";
+import ChangePassword from "@/pages/change-password";
 import Dash from "@/pages/dash";
+import Admin from "@/pages/admin";
+import AdminReview from "@/pages/admin-review";
 import UserBio from "@/pages/user-bio";
 
 function NotFound() {
@@ -29,8 +33,12 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/register/status/:requestId" element={<RegisterStatus />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/dash" element={<Dash />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/admin/:requestId" element={<AdminReview />} />
           {/* Public bio pages: /@username */}
           <Route path="/*" element={<UserBio />} />
         </Routes>

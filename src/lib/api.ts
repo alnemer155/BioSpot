@@ -30,6 +30,22 @@ export interface StatsResult {
   countries: { country: string; n: number }[];
 }
 
+export interface SubmitRequestResult {
+  requestId: string;
+  tempPassword: string;
+  status: string;
+}
+
+export interface RequestStatusResult {
+  id: string;
+  username: string;
+  status: string;
+  risk_level: string | null;
+  reviewed_at: string | null;
+  reviewer_notes: string | null;
+  created_at: string;
+}
+
 export const api = {
   me: () => request<{ user: import("./types").User }>("/api/me"),
   setUsername: (username: string) =>
@@ -80,6 +96,62 @@ export const api = {
     ),
   stats: (pageId?: string) =>
     request<StatsResult>(`/api/stats${pageId ? `?page=${pageId}` : ""}`),
+
+  // ─── Auth-2.0 ──────────────────────────────────────────────────────────
+  submitRequest: (data: {
+    username: string;
+    email: string;
+    display_name: string;
+    use_case: string;
+    use_case_details?: string;
+    agreed_to_terms: boolean;
+    agreed_to_auth2: boolean;
+    agreed_to_privacy: boolean;
+  }) => request<SubmitRequestResult>("/api/auth2/submit", { method: "POST", body: JSON.stringify(data) }),
+
+  getRequestStatus: (requestId: string) =>
+    request<RequestStatusResult>(`/api/auth2/status/${encodeURIComponent(requestId)}`),
+
+  checkForceChange: () => request<{ mustChange: boolean }>("/api/auth2/force-change"),
+
+  changePassword: (newPassword: string) =>
+    request<{ ok: boolean }>("/api/auth2/change-password", {
+      method: "POST",
+      body: JSON.stringify({ newPassword }),
+    }),
+
+  // ─── Auth-2.0 Admin ────────────────────────────────────────────────────
+  adminListRequests: (params?: { status?: string; page?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set("status", params.status);
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.limit) q.set("limit", String(params.limit));
+    const qs = q.toString();
+    return request<{ requests: import("./types").AccountRequest[]; total: number }>(`/api/auth2/admin/requests${qs ? `?${qs}` : ""}`);
+  },
+
+  adminGetRequest: (requestId: string) =>
+    request<{ request: import("./types").AccountRequest; reviews: import("./types").AccountRequestReview[] }>(
+      `/api/auth2/admin/request/${encodeURIComponent(requestId)}`
+    ),
+
+  adminApprove: (requestId: string, notes?: string) =>
+    request<{ ok: boolean }>(`/api/auth2/admin/approve/${encodeURIComponent(requestId)}`, {
+      method: "POST",
+      body: JSON.stringify({ notes }),
+    }),
+
+  adminReject: (requestId: string, notes?: string) =>
+    request<{ ok: boolean }>(`/api/auth2/admin/reject/${encodeURIComponent(requestId)}`, {
+      method: "POST",
+      body: JSON.stringify({ notes }),
+    }),
+
+  adminEscalate: (requestId: string, notes?: string) =>
+    request<{ ok: boolean }>(`/api/auth2/admin/escalate/${encodeURIComponent(requestId)}`, {
+      method: "POST",
+      body: JSON.stringify({ notes }),
+    }),
 };
 
 export async function uploadFile(_userId: string, file: File): Promise<string> {

@@ -47,4 +47,40 @@ export interface User {
   username?: string;
   slug?: string;
   page_id?: string;
+  must_change_password?: boolean;
+  admin_role?: "admin" | "reviewer" | null;
+}
+
+export type AccountRequestStatus = "pending" | "ai_review" | "approved" | "manual_review" | "rejected";
+
+export interface AccountRequest {
+  id: string;
+  username: string;
+  email: string;
+  display_name: string;
+  use_case: "creator" | "personal" | "for_someone_else" | "business" | "other";
+  use_case_details: string | null;
+  agreed_to_terms: boolean;
+  agreed_to_auth2: boolean;
+  agreed_to_privacy: boolean;
+  status: AccountRequestStatus;
+  ai_score: number | null;
+  ai_analysis: Record<string, unknown>;
+  ai_recommendation: string | null;
+  risk_level: string | null;
+  reviewed_by: string | null;
+  reviewer_notes: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AccountRequestReview {
+  id: string;
+  request_id: string;
+  reviewer: string;
+  action: "approved" | "rejected" | "manual_review" | "escalated";
+  notes: string | null;
+  ai_score_snapshot: number | null;
+  created_at: string;
 }

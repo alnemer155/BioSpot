@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LinkTroo Legal</title>
+<style>
+  :root {
+    --bg: #fff; --fg: #111; --card: #f5f5f5; --border: #e5e5e5;
+    --muted: #666; --accent: #111;
+  }
+  html.dark {
+    --bg: #0a0a0a; --fg: #fafafa; --card: #171717; --border: #262626;
+    --muted: #a3a3a3; --accent: #fafafa;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: "Inter", system-ui, sans-serif; line-height: 1.6; }
+  .container { max-width: 640px; margin: 0 auto; padding: 2rem 1.5rem; }
+  .back { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--muted); text-decoration: none; font-size: 0.8125rem; transition: color 0.15s; }
+  .back:hover { color: var(--fg); }
+  .theme-btn { position: fixed; top: 1rem; right: 1rem; background: var(--card); border: 1px solid var(--border); color: var(--fg); width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1rem; }
+  h1 { font-size: 1.5rem; font-weight: 600; margin: 1.5rem 0 0.5rem; letter-spacing: -0.02em; }
+  .subtitle { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; }
+  .policy-list { list-style: none; }
+  .policy-list li { border: 1px solid var(--border); margin-bottom: 0.5rem; }
+  .policy-list a { display: block; padding: 1rem 1.25rem; color: var(--fg); text-decoration: none; font-size: 0.9375rem; transition: background 0.15s; }
+  .policy-list a:hover { background: var(--card); }
+  .policy-content { font-size: 0.9375rem; }
+  .policy-content h2 { font-size: 1.125rem; font-weight: 600; margin: 2rem 0 0.75rem; }
+  .policy-content h3 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+  .policy-content p { color: var(--muted); margin-bottom: 1rem; }
+  .policy-content ul, .policy-content ol { color: var(--muted); margin: 0 0 1rem 1.5rem; }
+  .policy-content li { margin-bottom: 0.375rem; }
+  .updated { color: var(--muted); font-size: 0.75rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<button class="theme-btn" id="themeToggle" aria-label="Toggle theme"></button>
+<div class="container" id="app"></div>
+<script>
+const policies = {
+  terms: {
+    title: "Terms of Service",
+    content: `
+      <h2>1. Acceptance of Terms</h2>
+      <p>By accessing or using LinkTroo ("the Service"), you agree to be bound by these Terms of Service. If you do not agree, do not use the Service.</p>
+      <h2>2. Account Registration</h2>
+      <p>Account creation is subject to Auth-2.0 security review. Submitting a registration request does not guarantee account approval. LinkTroo reserves the right to reject any request at its sole discretion.</p>
+      <h2>3. User Responsibilities</h2>
+      <ul>
+        <li>You are responsible for the content on your LinkTroo page.</li>
+        <li>You must not use the Service for illegal, harmful, or fraudulent purposes.</li>
+        <li>You must keep your account credentials secure.</li>
+      </ul>
+      <h2>4. Content</h2>
+      <p>Users retain ownership of their content. LinkTroo does not claim ownership over any content posted through the Service.</p>
+      <h2>5. Service Availability</h2>
+      <p>LinkTroo may modify, suspend, or discontinue any part of the Service at any time without prior notice.</p>
+      <h2>6. Limitation of Liability</h2>
+      <p>LinkTroo shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of the Service.</p>
+      <h2>7. Changes</h2>
+      <p>These terms may be updated periodically. Continued use of the Service constitutes acceptance of any changes.</p>
+    `
+  },
+  privacy: {
+    title: "Privacy Policy",
+    content: `
+      <h2>1. Information We Collect</h2>
+      <ul>
+        <li>Account information: email address, username, display name.</li>
+        <li>Profile data: bio, links, images, and other content you add to your page.</li>
+        <li>Usage data: page views, clicks, referrers, and device country for analytics.</li>
+        <li>Registration data: use case, IP-derived country, and request timestamps.</li>
+      </ul>
+      <h2>2. How We Use Your Information</h2>
+      <ul>
+        <li>To provide and maintain the Service.</li>
+        <li>To process account requests and conduct security reviews.</li>
+        <li>To provide analytics to account owners.</li>
+        <li>To detect and prevent fraud, abuse, and security incidents.</li>
+      </ul>
+      <h2>3. Data Storage</h2>
+      <p>Data is stored on secure cloud infrastructure. We use encryption in transit (HTTPS) and at rest where supported.</p>
+      <h2>4. Data Sharing</h2>
+      <p>We do not sell your personal data. Data may be shared with infrastructure providers strictly for service operation.</p>
+      <h2>5. Your Rights</h2>
+      <p>You may request deletion of your account and associated data by contacting the LinkTroo team.</p>
+      <h2>6. Cookies</h2>
+      <p>LinkTroo uses session cookies for authentication. These are strictly necessary for the Service to function.</p>
+      <h2>7. Changes</h2>
+      <p>This policy may be updated periodically. Material changes will be communicated through the Service when possible.</p>
+    `
+  },
+  auth: {
+    title: "Auth-2.0 Policy",
+    content: `
+      <h2>Overview</h2>
+      <p>Auth-2.0 is LinkTroo's account security and review system. It is designed to reduce fake accounts, bots, and abuse while maintaining a fast user experience.</p>
+      <h2>Registration Process</h2>
+      <ul>
+        <li>Users submit a registration request with their username, email, display name, and intended use case.</li>
+        <li>The request enters Auth-2.0 security review before an account is created.</li>
+        <li>A temporary password is generated and shown once upon submission.</li>
+      </ul>
+      <h2>Security Review</h2>
+      <p>Every registration request is analyzed by internal security rules and AI-assisted analysis (Google Gemini) to detect:</p>
+      <ul>
+        <li>Bot activity and automated signups.</li>
+        <li>Suspicious email patterns (throwaway emails, unusual domains).</li>
+        <li>Spam or fraudulent usernames.</li>
+        <li>Unusual registration patterns.</li>
+      </ul>
+      <h2>Review Outcomes</h2>
+      <ul>
+        <li><strong>Approved:</strong> Account is created automatically. User must change their temporary password on first login.</li>
+        <li><strong>Manual Review:</strong> Suspicious indicators detected. A human reviewer will examine the request.</li>
+        <li><strong>Rejected:</strong> Request did not pass security review.</li>
+      </ul>
+      <h2>Review Timeline</h2>
+      <p>Most requests are reviewed within 15 minutes to 3 hours. Manual review cases may take longer.</p>
+      <h2>Data Retention</h2>
+      <p>Rejected request data is retained for security purposes and may be purged after a reasonable period.</p>
+    `
+  },
+  registration: {
+    title: "Registration Terms",
+    content: `
+      <h2>Eligibility</h2>
+      <p>You must be at least 13 years old to create a LinkTroo account.</p>
+      <h2>Account Requirements</h2>
+      <ul>
+        <li>A valid email address is required.</li>
+        <li>Usernames must follow format rules (2-30 characters, letters/numbers/underscores/dashes).</li>
+        <li>Each email may only have one active account or request.</li>
+      </ul>
+      <h2>Temporary Password</h2>
+      <p>Upon account approval, a system-generated temporary password is provided. You must change this password on your first login. The temporary password is shown only once.</p>
+      <h2>Account Review</h2>
+      <p>All registration requests are subject to Auth-2.0 security review. Approval is not guaranteed.</p>
+      <h2>One Account Per Person</h2>
+      <p>Creating multiple accounts for the same person is not permitted and may result in account termination.</p>
+    `
+  },
+  content: {
+    title: "Content Policy",
+    content: `
+      <h2>Allowed Content</h2>
+      <p>LinkTroo is a link-in-bio platform. You may share links to your content, social profiles, projects, and other personal or professional pages.</p>
+      <h2>Prohibited Content</h2>
+      <ul>
+        <li>Illegal, violent, or harmful content.</li>
+        <li>Content that infringes on intellectual property rights.</li>
+        <li>Malware, phishing, or deceptive links.</li>
+        <li>Spam, scams, or fraudulent material.</li>
+        <li>Adult or sexually explicit content.</li>
+        <li>Content that harasses, threatens, or defames individuals or groups.</li>
+      </ul>
+      <h2>Enforcement</h2>
+      <p>LinkTroo reserves the right to remove content or suspend accounts that violate this policy without prior notice.</p>
+      <h2>Reporting</h2>
+      <p>If you encounter content that violates this policy, please report it to the LinkTroo team for review.</p>
+    `
+  },
+  accounts: {
+    title: "Account Policy",
+    content: `
+      <h2>Account Ownership</h2>
+      <p>Each LinkTroo account is for one person. Sharing accounts or transferring ownership is not supported.</p>
+      <h2>Account Suspension</h2>
+      <p>LinkTroo may suspend or terminate accounts that:</p>
+      <ul>
+        <li>Violate any of LinkTroo's policies.</li>
+        <li>Engage in fraudulent, harmful, or illegal activity.</li>
+        <li>Remain inactive for an extended period (specific duration TBD).</li>
+      </ul>
+      <h2>Account Deletion</h2>
+      <p>You may request account deletion at any time. Associated data will be removed in accordance with our data retention practices.</p>
+      <h2>Security</h2>
+      <p>You are responsible for maintaining the security of your account. Report any unauthorized access immediately.</p>
+    `
+  }
+};
+
+let currentPolicy = null;
+let isDark = false;
+
+function init() {
+  const saved = localStorage.getItem("theme");
+  isDark = saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  applyTheme();
+
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    isDark = !isDark;
+    applyTheme();
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+  });
+
+  window.addEventListener("hashchange", render);
+  render();
+}
+
+function applyTheme() {
+  document.documentElement.classList.toggle("dark", isDark);
+  document.getElementById("themeToggle").textContent = isDark ? "\u2600" : "\u263E";
+}
+
+function render() {
+  const hash = location.hash.slice(1);
+  const app = document.getElementById("app");
+
+  if (hash && policies[hash]) {
+    currentPolicy = hash;
+    const p = policies[hash];
+    app.innerHTML = `
+      <a class="back" href="#">&larr; All Policies</a>
+      <h1>${p.title}</h1>
+      <div class="policy-content">${p.content}</div>
+      <div class="updated">Last updated: September 2026</div>
+    `;
+  } else {
+    currentPolicy = null;
+    const items = Object.entries(policies).map(([key, p]) =>
+      `<li><a href="#${key}">${p.title}</a></li>`
+    ).join("");
+    app.innerHTML = `
+      <h1>LinkTroo Legal</h1>
+      <p class="subtitle">Official policies and terms for LinkTroo</p>
+      <ul class="policy-list">${items}</ul>
+      <div class="updated">Last updated: September 2026</div>
+    `;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
