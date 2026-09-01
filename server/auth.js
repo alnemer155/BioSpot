@@ -36,5 +36,6 @@ export const auth = betterAuth({
     "http://localhost:8787",
     "https://linktroo.cc",
     "https://www.linktroo.cc",
+    "https://biospot-production.up.railway.app",
   ],
 });
