@@ -27,7 +27,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:8787", "https://linktroo.cc"],
+    origin: ["http://localhost:5173", "http://localhost:8787", "https://linktroo.cc", "https://www.linktroo.cc"],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],

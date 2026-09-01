@@ -1,8 +1,6 @@
-const BASE = import.meta.env.VITE_API_URL || "";
-
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const res = await fetch(`${BASE}${url}`, { credentials: "include", headers, ...options });
+  const res = await fetch(url, { credentials: "include", headers, ...options });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error((data as { error?: string }).error || "Something went wrong.");
@@ -58,7 +56,7 @@ export const api = {
     request<import("./types").BioData>(`/api/p/${encodeURIComponent(slug)}`),
   track: (kind: "username" | "slug", id: string, type: "view" | "click", opts?: { itemId?: string; lang?: string }) => {
     const base = kind === "username" ? "/api/u/" : "/api/p/";
-    return fetch(`${BASE}${base}${encodeURIComponent(id)}`, {
+    return fetch(`${base}${encodeURIComponent(id)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -87,7 +85,7 @@ export const api = {
 export async function uploadFile(_userId: string, file: File): Promise<string> {
   const arrayBuf = await file.arrayBuffer();
   const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuf)));
-  const res = await fetch(`${BASE}/api/upload`, {
+  const res = await fetch("/api/upload", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },

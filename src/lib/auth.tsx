@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         return;
       }
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/me`, { credentials: "include" });
+      const res = await fetch("/api/me", { credentials: "include" });
       if (!res.ok) throw new Error();
       const body = await res.json().catch(() => ({}));
       setUser(body.user ?? null);

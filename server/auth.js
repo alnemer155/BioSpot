@@ -35,5 +35,6 @@ export const auth = betterAuth({
     "http://localhost:5173",
     "http://localhost:8787",
     "https://linktroo.cc",
+    "https://www.linktroo.cc",
   ],
 });
