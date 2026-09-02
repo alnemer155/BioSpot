@@ -417,6 +417,13 @@ app.post("/api/auth2/submit", async (req, res) => {
         const risk = aiResult.risk || "medium";
         const rec = aiResult.recommendation || "manual_review";
 
+        // Check if request was already manually approved/rejected before we overwrite
+        const current = await getRequestById(request.id);
+        if (current && (current.status === "approved" || current.status === "rejected")) {
+          console.log(`[auth2] Request ${request.id} already ${current.status}, skipping AI status update`);
+          return;
+        }
+
         let newStatus = "manual_review";
         if (rec === "approve" && score < 40) newStatus = "approved";
         else if (rec === "reject" && score > 80) newStatus = "rejected";
@@ -496,7 +503,7 @@ app.post("/api/auth2/change-password", async (req, res) => {
 
     // Get the temp password from account_requests to pass as currentPassword
     const supa = await makeSupa(null, null, true);
-    const { data: ar } = await supa
+    const { data: ar, error: arErr } = await supa
       .from("account_requests")
       .select("temp_password")
       .eq("email", session.user.email)
@@ -505,11 +512,21 @@ app.post("/api/auth2/change-password", async (req, res) => {
       .limit(1)
       .maybeSingle();
 
+    console.log("[change-pw] email:", session.user.email, "ar:", ar, "err:", arErr);
+
     const port = process.env.PORT || 8787;
     const baseUrl = process.env.BETTER_AUTH_BASE_URL || `http://localhost:${port}`;
 
+    // If we couldn't find the temp_password, try without currentPassword
+    // (this means the user was created via admin approval and we need to handle it differently)
     const body = { newPassword };
-    if (ar?.temp_password) body.currentPassword = ar.temp_password;
+    if (ar?.temp_password) {
+      body.currentPassword = ar.temp_password;
+    } else {
+      console.log("[change-pw] WARNING: temp_password not found, attempting without currentPassword");
+    }
+
+    console.log("[change-pw] temp_password found:", !!ar?.temp_password, "email:", session.user.email);
 
     const updateRes = await fetch(`${baseUrl}/api/auth/change-password`, {
       method: "POST",
@@ -520,9 +537,11 @@ app.post("/api/auth2/change-password", async (req, res) => {
       },
       body: JSON.stringify(body),
     });
+    const updateBody = await updateRes.json().catch(() => ({}));
+    console.log("[change-pw] BA response:", updateRes.status, JSON.stringify(updateBody));
+
     if (!updateRes.ok) {
-      const err = await updateRes.json().catch(() => ({}));
-      return res.status(updateRes.status).json({ error: err.error?.message || "Failed to update password" });
+      return res.status(updateRes.status).json({ error: updateBody.error?.message || updateBody.message || "Failed to update password" });
     }
     await clearForcePasswordChange(session.user.id);
     res.json({ ok: true });
@@ -535,7 +554,10 @@ app.post("/api/auth2/change-password", async (req, res) => {
 // ─── Helper: Activate approved request ──────────────────────────────────────
 async function activateRequest(requestId) {
   const request = await getRequestById(requestId);
-  if (!request || request.status !== "approved") return;
+  if (!request || request.status !== "approved") {
+    console.log(`[auth2] activateRequest: skipped — status=${request?.status}`);
+    return;
+  }
 
   const { db } = await import("./auth.js");
 
@@ -547,6 +569,7 @@ async function activateRequest(requestId) {
 
   const port = process.env.PORT || 8787;
   const baseUrl = process.env.BETTER_AUTH_BASE_URL || `http://localhost:${port}`;
+  console.log(`[auth2] Creating user: email=${request.email}, pw_len=${request.temp_password?.length}`);
   const signupRes = await fetch(`${baseUrl}/api/auth/sign-up/email`, {
     method: "POST",
     headers: {
