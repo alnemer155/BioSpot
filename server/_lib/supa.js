@@ -88,8 +88,19 @@ export async function savePage(supa, pageId, patch) {
 }
 
 export async function replaceItems(supa, pageId, items) {
-  await supa.from("items").delete().eq("page_id", pageId);
-  if (!items.length) return;
+  // Fetch existing items as backup before delete
+  const { data: existing } = await supa.from("items").select("id").eq("page_id", pageId);
+  const existingIds = (existing || []).map((r) => r.id);
+
+  if (!items.length) {
+    // Just delete all
+    if (existingIds.length) {
+      const { error } = await supa.from("items").delete().eq("page_id", pageId);
+      if (error) throw new Error(error.message);
+    }
+    return;
+  }
+
   const rows = items.map((it, i) => ({
     id: it.id,
     page_id: pageId,
@@ -102,8 +113,18 @@ export async function replaceItems(supa, pageId, items) {
     sort_order: typeof it.sort_order === "number" ? it.sort_order : i + 1,
     visible: it.visible !== false,
   }));
-  const { error } = await supa.from("items").insert(rows);
-  if (error) throw new Error(error.message);
+
+  // Insert new items first, then delete old ones (safer than delete-then-insert)
+  const { error: insertError } = await supa.from("items").insert(rows);
+  if (insertError) throw new Error(insertError.message);
+
+  // Delete items that are no longer in the list
+  const newIds = new Set(rows.map((r) => r.id).filter(Boolean));
+  const toDelete = existingIds.filter((id) => !newIds.has(id));
+  if (toDelete.length) {
+    const { error: delError } = await supa.from("items").delete().in("id", toDelete);
+    if (delError) throw new Error(delError.message);
+  }
 }
 
 export async function addEvent(supa, pageId, type, itemId, lang, referrer, country) {

@@ -152,6 +152,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ notes }),
     }),
+
+  verifySecurityQuestions: (answers: Record<string, string>) =>
+    request<{ ok: boolean; verified: boolean }>("/api/auth2/admin/verify-questions", {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    }),
+
+  logout: () => request<{ ok: boolean }>("/api/logout", { method: "POST" }),
 };
 
 export async function uploadFile(_userId: string, file: File): Promise<string> {

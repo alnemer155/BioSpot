@@ -20,7 +20,7 @@ function NotFound() {
         href="/"
         className="mt-4 border border-border px-4 py-2 text-xs text-foreground hover:bg-accent transition-colors animate-fade-up"
       >
-        Back to BioSpot
+        Back to LinkTroo
       </a>
     </main>
   );

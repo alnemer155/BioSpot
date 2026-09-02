@@ -29,11 +29,12 @@ const RISK_COLORS: Record<string, string> = {
   critical: "text-red-600 dark:text-red-400",
 };
 
+// Questions are displayed in Arabic — answers are verified server-side
 const SECURITY_QUESTIONS = [
-  { key: "age", questionAr: "عمر المطور؟", questionEn: "Developer's age?", answer: "18" },
-  { key: "name", questionAr: "اسم المطور؟", questionEn: "Developer's name?", answer: "عبدالله" },
-  { key: "email", questionAr: "ايميل المطور؟", questionEn: "Developer's email?", answer: "a.jaafar1430@gmail.com" },
-  { key: "color", questionAr: "لون المفضلة؟", questionEn: "Favorite color?", answer: "الازرق" },
+  { key: "age", questionAr: "عمر المطور؟", questionEn: "Developer's age?" },
+  { key: "name", questionAr: "اسم المطور؟", questionEn: "Developer's name?" },
+  { key: "email", questionAr: "ايميل المطور؟", questionEn: "Developer's email?" },
+  { key: "color", questionAr: "لون المفضلة؟", questionEn: "Favorite color?" },
 ];
 
 export default function Admin() {
@@ -50,6 +51,7 @@ export default function Admin() {
   const [securityPassed, setSecurityPassed] = useState(false);
   const [securityAnswers, setSecurityAnswers] = useState<Record<string, string>>({});
   const [securityError, setSecurityError] = useState<string | null>(null);
+  const [securityBusy, setSecurityBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,15 +76,20 @@ export default function Admin() {
     if (user?.admin_role && securityPassed) load();
   }, [user, load, securityPassed]);
 
-  const handleSecuritySubmit = () => {
-    const allCorrect = SECURITY_QUESTIONS.every(
-      (q) => securityAnswers[q.key]?.trim() === q.answer
-    );
-    if (allCorrect) {
-      setSecurityPassed(true);
-      setSecurityError(null);
-    } else {
+  const handleSecuritySubmit = async () => {
+    setSecurityBusy(true);
+    setSecurityError(null);
+    try {
+      const res = await api.verifySecurityQuestions(securityAnswers);
+      if (res.verified) {
+        setSecurityPassed(true);
+      } else {
+        setSecurityError("Incorrect answers. Access denied.");
+      }
+    } catch {
       setSecurityError("Incorrect answers. Access denied.");
+    } finally {
+      setSecurityBusy(false);
     }
   };
 
@@ -133,9 +140,10 @@ export default function Admin() {
 
             <button
               onClick={handleSecuritySubmit}
-              className="w-full border border-foreground bg-foreground py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90"
+              disabled={securityBusy}
+              className="w-full border border-foreground bg-foreground py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              Verify
+              {securityBusy ? "Verifying..." : "Verify"}
             </button>
           </div>
         </div>

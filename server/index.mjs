@@ -41,6 +41,7 @@ const {
 
 const app = express();
 
+// ─── CORS ──────────────────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:8787",
@@ -54,7 +55,7 @@ app.use(
       if (!origin || ALLOWED_ORIGINS.includes(origin)) {
         callback(null, true);
       } else {
-        callback(null, true);
+        callback(new Error("Not allowed by CORS"));
       }
     },
     credentials: true,
@@ -63,11 +64,40 @@ app.use(
   })
 );
 
+// ─── Rate Limiter (in-memory) ──────────────────────────────────────────────
+const rateLimitStore = new Map();
+
+function rateLimit(key, maxRequests = 10, windowMs = 60_000) {
+  const now = Date.now();
+  const entry = rateLimitStore.get(key);
+  if (!entry || now - entry.start > windowMs) {
+    rateLimitStore.set(key, { start: now, count: 1 });
+    return true;
+  }
+  entry.count++;
+  if (entry.count > maxRequests) return false;
+  return true;
+}
+
+// Cleanup stale entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitStore) {
+    if (now - entry.start > 300_000) rateLimitStore.delete(key);
+  }
+}, 300_000);
+
+function getClientIp(req) {
+  return req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+}
+
+// ─── Better Auth handler (MUST be before body parser) ──────────────────────
 app.all("/api/auth/*", toNodeHandler(auth));
 app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json({ limit: "2mb" }));
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
 async function getSessionUser(req) {
   try {
     const session = await auth.api.getSession({
@@ -89,8 +119,18 @@ async function requireAuth(req, res) {
   return session;
 }
 
+function sanitizeError(e) {
+  const msg = e?.message || "Internal server error";
+  if (msg.includes("duplicate") || msg.includes("UNIQUE")) return "A record already exists.";
+  if (msg.includes("foreign key")) return "Referenced record not found.";
+  if (msg.includes("permission") || msg.includes("RLS")) return "Permission denied.";
+  if (msg.includes("Supabase") || msg.includes("supabase")) return "Database service unavailable.";
+  return "Something went wrong. Please try again.";
+}
+
 const SHORT_USERNAME_LIMIT = 50;
 
+// ─── Username ───────────────────────────────────────────────────────────────
 app.post("/api/set-username", async (req, res) => {
   try {
     const session = await requireAuth(req, res);
@@ -116,10 +156,11 @@ app.post("/api/set-username", async (req, res) => {
     res.json({ user: { id: session.user.id, slug } });
   } catch (e) {
     console.error("[username] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: sanitizeError(e) });
   }
 });
 
+// ─── Me ─────────────────────────────────────────────────────────────────────
 app.get("/api/me", async (req, res) => {
   try {
     const session = await getSessionUser(req);
@@ -131,10 +172,24 @@ app.get("/api/me", async (req, res) => {
     res.json({ user: { id: session.user.id, email: session.user.email, page_id: page.id, slug: page.slug, must_change_password: mustChange, admin_role: role } });
   } catch (e) {
     console.error("[me] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: sanitizeError(e) });
   }
 });
 
+// ─── Logout ─────────────────────────────────────────────────────────────────
+app.post("/api/logout", async (req, res) => {
+  try {
+    const session = await getSessionUser(req);
+    if (session?.session?.token) {
+      await auth.api.signOut({ headers: fromNodeHeaders(req.headers) });
+    }
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: true });
+  }
+});
+
+// ─── Pages ──────────────────────────────────────────────────────────────────
 app.get("/api/pages", async (req, res) => {
   try {
     const session = await requireAuth(req, res);
@@ -143,10 +198,36 @@ app.get("/api/pages", async (req, res) => {
     res.json({ pages: await listPages(supa, session.user.id) });
   } catch (e) {
     console.error("[pages] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: sanitizeError(e) });
   }
 });
 
+app.post("/api/pages", async (req, res) => {
+  try {
+    const session = await requireAuth(req, res);
+    if (!session) return;
+    const { name, slug } = req.body || {};
+    if (!name || !slug) return res.status(400).json({ error: "Name and slug are required." });
+    if (!SLUG_RE.test(slug)) return res.status(400).json({ error: "Invalid slug." });
+
+    const supa = await makeSupa(null, null, true);
+    const { data: existing } = await supa.from("pages").select("id").eq("slug", slug).maybeSingle();
+    if (existing) return res.status(409).json({ error: "This slug is already taken." });
+
+    const { data: page, error } = await supa
+      .from("pages")
+      .insert({ user_id: session.user.id, slug, name, is_default: false })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    res.json({ page });
+  } catch (e) {
+    console.error("[pages:create] error:", e.message);
+    res.status(500).json({ error: sanitizeError(e) });
+  }
+});
+
+// ─── Bio ────────────────────────────────────────────────────────────────────
 app.get("/api/bio", async (req, res) => {
   try {
     const session = await requireAuth(req, res);
@@ -159,7 +240,7 @@ app.get("/api/bio", async (req, res) => {
     res.json({ profile: page, items: await getItems(supa, page.id) });
   } catch (e) {
     console.error("[bio] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: sanitizeError(e) });
   }
 });
 
@@ -184,47 +265,104 @@ app.put("/api/bio", async (req, res) => {
     res.json({ profile: fresh, items: await getItems(supa, page.id) });
   } catch (e) {
     console.error("[bio:put] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: sanitizeError(e) });
   }
 });
+
+// ─── Upload ─────────────────────────────────────────────────────────────────
+const ALLOWED_UPLOAD_TYPES = new Set([
+  "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
+  "application/pdf",
+  "audio/mpeg", "audio/ogg", "audio/wav",
+  "video/mp4", "video/webm",
+  "text/plain", "text/csv",
+]);
 
 app.post("/api/upload", async (req, res) => {
   try {
     const session = await requireAuth(req, res);
     if (!session) return;
     const supa = await makeSupa(null, null, true);
-    const { file, filename } = req.body || {};
+    const { file, filename, contentType } = req.body || {};
     if (!file || !filename) return res.status(400).json({ error: "Missing file data." });
+
+    // Validate content type
+    const ct = contentType || "application/octet-stream";
+    if (!ALLOWED_UPLOAD_TYPES.has(ct)) {
+      return res.status(400).json({ error: "File type not allowed." });
+    }
+
     const buf = Buffer.from(file, "base64");
+
+    // Max 5MB after base64 decode
+    if (buf.length > 5 * 1024 * 1024) {
+      return res.status(400).json({ error: "File too large. Maximum 5MB." });
+    }
+
     const safeName = filename.replace(/[^\w.\-]/g, "_");
     const filePath = `${session.user.id}/${Date.now()}-${safeName}`;
-    const { error } = await supa.storage.from("files").upload(filePath, buf, {
-      contentType: req.body.contentType || "application/octet-stream",
-    });
-    if (error) return res.status(500).json({ error: error.message });
+    const { error } = await supa.storage.from("files").upload(filePath, buf, { contentType: ct });
+    if (error) return res.status(500).json({ error: "Upload failed." });
     const { data } = supa.storage.from("files").getPublicUrl(filePath);
     res.json({ url: data.publicUrl });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: "Upload failed." });
   }
 });
 
+// ─── Public bio ─────────────────────────────────────────────────────────────
 app.get("/api/u/:username", async (req, res) => {
-  const supa = await makeSupa();
-  const page = await getPageBySlug(supa, String(req.params.username).toLowerCase().replace(/^@/, ""));
-  if (!page) return res.status(404).json({ error: "This LinkTroo page does not exist." });
-  res.json({ profile: page, items: await getItems(supa, page.id, true) });
+  try {
+    const supa = await makeSupa();
+    const page = await getPageBySlug(supa, String(req.params.username).toLowerCase().replace(/^@/, ""));
+    if (!page) return res.status(404).json({ error: "This LinkTroo page does not exist." });
+    res.json({ profile: page, items: await getItems(supa, page.id, true) });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to load page." });
+  }
 });
 
 app.post("/api/u/:username", async (req, res) => {
-  const supa = await makeSupa();
-  const page = await getPageBySlug(supa, String(req.params.username).toLowerCase().replace(/^@/, ""));
-  if (!page) return res.status(404).json({ error: "This LinkTroo page does not exist." });
-  const b = req.body || {};
-  await addEvent(supa, page.id, b.type === "click" ? "click" : "view", b.itemId || null, b.lang || null, b.referrer || null, req.headers["cf-ipcountry"] || null);
-  res.json({ ok: true });
+  try {
+    const supa = await makeSupa();
+    const page = await getPageBySlug(supa, String(req.params.username).toLowerCase().replace(/^@/, ""));
+    if (!page) return res.status(404).json({ error: "This LinkTroo page does not exist." });
+    const b = req.body || {};
+    await addEvent(supa, page.id, b.type === "click" ? "click" : "view", b.itemId || null, b.lang || null, b.referrer || null, req.headers["cf-ipcountry"] || null);
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: true });
+  }
 });
 
+// ─── Public slug (alias pages) ─────────────────────────────────────────────
+app.get("/api/p/:slug", async (req, res) => {
+  try {
+    const supa = await makeSupa();
+    const slug = String(req.params.slug).toLowerCase().replace(/^@/, "");
+    const page = await getPageBySlug(supa, slug);
+    if (!page) return res.status(404).json({ error: "Page not found." });
+    res.json({ profile: page, items: await getItems(supa, page.id, true) });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to load page." });
+  }
+});
+
+app.post("/api/p/:slug", async (req, res) => {
+  try {
+    const supa = await makeSupa();
+    const slug = String(req.params.slug).toLowerCase().replace(/^@/, "");
+    const page = await getPageBySlug(supa, slug);
+    if (!page) return res.status(404).json({ error: "Page not found." });
+    const b = req.body || {};
+    await addEvent(supa, page.id, b.type === "click" ? "click" : "view", b.itemId || null, b.lang || null, b.referrer || null, req.headers["cf-ipcountry"] || null);
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: true });
+  }
+});
+
+// ─── Stats ──────────────────────────────────────────────────────────────────
 app.get("/api/stats", async (req, res) => {
   try {
     const session = await requireAuth(req, res);
@@ -237,15 +375,26 @@ app.get("/api/stats", async (req, res) => {
     res.json(await getStats(supa, page.id));
   } catch (e) {
     console.error("[stats] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: sanitizeError(e) });
   }
 });
 
+// ─── Health ─────────────────────────────────────────────────────────────────
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
-// ─── Auth-2.0: Submit registration request ───────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTH-2.0 ROUTES
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Submit registration request ────────────────────────────────────────────
 app.post("/api/auth2/submit", async (req, res) => {
   try {
+    // Rate limit: 3 submissions per IP per 10 minutes
+    const ip = getClientIp(req);
+    if (!rateLimit(`submit:${ip}`, 3, 600_000)) {
+      return res.status(429).json({ error: "Too many registration attempts. Please try again later." });
+    }
+
     const data = req.body || {};
     const errors = validateRequest(data);
     if (errors.length) return res.status(400).json({ error: errors[0] });
@@ -294,30 +443,36 @@ app.post("/api/auth2/submit", async (req, res) => {
     res.json({ requestId: request.id, tempPassword, status: "pending" });
   } catch (e) {
     console.error("[auth2:submit] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: sanitizeError(e) });
   }
 });
 
-// ─── Auth-2.0: Check request status ──────────────────────────────────────────
+// ─── Check request status (rate limited, minimal data) ─────────────────────
 app.get("/api/auth2/status/:requestId", async (req, res) => {
   try {
+    const ip = getClientIp(req);
+    if (!rateLimit(`status:${ip}`, 30, 60_000)) {
+      return res.status(429).json({ error: "Too many requests." });
+    }
+
     const request = await getRequestById(req.params.requestId);
     if (!request) return res.status(404).json({ error: "Request not found." });
+
+    // Only return minimal data — no email, no risk details, no AI analysis
     res.json({
       id: request.id,
       username: request.username,
       status: request.status,
-      risk_level: request.risk_level,
       reviewed_at: request.reviewed_at,
       reviewer_notes: request.reviewer_notes,
       created_at: request.created_at,
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: "Failed to check status." });
   }
 });
 
-// ─── Auth-2.0: Check if user needs password change ──────────────────────────
+// ─── Check if user needs password change ────────────────────────────────────
 app.get("/api/auth2/force-change", async (req, res) => {
   try {
     const session = await getSessionUser(req);
@@ -329,7 +484,7 @@ app.get("/api/auth2/force-change", async (req, res) => {
   }
 });
 
-// ─── Auth-2.0: Change password ──────────────────────────────────────────────
+// ─── Change password ────────────────────────────────────────────────────────
 app.post("/api/auth2/change-password", async (req, res) => {
   try {
     const session = await requireAuth(req, res);
@@ -353,7 +508,6 @@ app.post("/api/auth2/change-password", async (req, res) => {
     const port = process.env.PORT || 8787;
     const baseUrl = process.env.BETTER_AUTH_BASE_URL || `http://localhost:${port}`;
 
-    // Build body — include currentPassword if we have it
     const body = { newPassword };
     if (ar?.temp_password) body.currentPassword = ar.temp_password;
 
@@ -374,25 +528,23 @@ app.post("/api/auth2/change-password", async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error("[auth2:change-pw] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: "Failed to update password." });
   }
 });
 
-// ─── Helper: Activate approved request (create Better Auth account) ────────
+// ─── Helper: Activate approved request ──────────────────────────────────────
 async function activateRequest(requestId) {
   const request = await getRequestById(requestId);
   if (!request || request.status !== "approved") return;
 
   const { db } = await import("./auth.js");
 
-  // Check if user already exists
   const existing = db.prepare(`SELECT id FROM "user" WHERE email = ?`).get(request.email);
   if (existing) {
     console.log(`[auth2] User already exists for ${request.email}, skipping creation`);
     return existing.id;
   }
 
-  // Use Better Auth's internal API to create user (handles password hashing correctly)
   const port = process.env.PORT || 8787;
   const baseUrl = process.env.BETTER_AUTH_BASE_URL || `http://localhost:${port}`;
   const signupRes = await fetch(`${baseUrl}/api/auth/sign-up/email`, {
@@ -415,11 +567,9 @@ async function activateRequest(requestId) {
   const userId = signupData.user?.id;
   if (!userId) throw new Error("No user ID in signup response");
 
-  // Set force password change
   const supa = await makeSupa(null, null, true);
   await supa.from("force_password_change").upsert({ user_id: userId, must_change: true });
 
-  // Create default page with requested username
   const page = await ensureDefaultPage(supa, userId, request.username);
   if (page) {
     await supa.from("pages").update({ slug: request.username, is_default: true }).eq("id", page.id);
@@ -429,7 +579,10 @@ async function activateRequest(requestId) {
   return userId;
 }
 
-// ─── Auth-2.0 Admin: Require admin role ─────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// ADMIN ROUTES
+// ═══════════════════════════════════════════════════════════════════════════
+
 async function requireAdmin(req, res) {
   const session = await requireAuth(req, res);
   if (!session) return null;
@@ -441,7 +594,42 @@ async function requireAdmin(req, res) {
   return { session, role };
 }
 
-// ─── Auth-2.0 Admin: List requests ──────────────────────────────────────────
+// ─── Admin: Verify security questions ──────────────────────────────────────
+// Questions and hashed answers are server-side only
+const ADMIN_SECURITY_QUESTIONS = [
+  { key: "age", hash: crypto.createHash("sha256").update("18").digest("hex") },
+  { key: "name", hash: crypto.createHash("sha256").update("عبدالله").digest("hex") },
+  { key: "email", hash: crypto.createHash("sha256").update("a.jaafar1430@gmail.com").digest("hex") },
+  { key: "color", hash: crypto.createHash("sha256").update("الازرق").digest("hex") },
+];
+
+app.post("/api/auth2/admin/verify-questions", async (req, res) => {
+  try {
+    const session = await requireAuth(req, res);
+    if (!session) return;
+
+    const { answers } = req.body || {};
+    if (!answers || typeof answers !== "object") {
+      return res.status(400).json({ error: "Answers required." });
+    }
+
+    const allCorrect = ADMIN_SECURITY_QUESTIONS.every((q) => {
+      const userAnswer = String(answers[q.key] || "").trim();
+      const hash = crypto.createHash("sha256").update(userAnswer).digest("hex");
+      return hash === q.hash;
+    });
+
+    if (!allCorrect) {
+      return res.status(403).json({ error: "Incorrect answers.", verified: false });
+    }
+
+    res.json({ ok: true, verified: true });
+  } catch (e) {
+    res.status(500).json({ error: "Verification failed." });
+  }
+});
+
+// ─── Admin: List requests ──────────────────────────────────────────────────
 app.get("/api/auth2/admin/requests", async (req, res) => {
   try {
     const auth = await requireAdmin(req, res);
@@ -453,11 +641,11 @@ app.get("/api/auth2/admin/requests", async (req, res) => {
     res.json(result);
   } catch (e) {
     console.error("[auth2:admin:list] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: "Failed to load requests." });
   }
 });
 
-// ─── Auth-2.0 Admin: Get request details ────────────────────────────────────
+// ─── Admin: Get request details ────────────────────────────────────────────
 app.get("/api/auth2/admin/request/:requestId", async (req, res) => {
   try {
     const auth = await requireAdmin(req, res);
@@ -468,11 +656,11 @@ app.get("/api/auth2/admin/request/:requestId", async (req, res) => {
     res.json({ request, reviews });
   } catch (e) {
     console.error("[auth2:admin:detail] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: "Failed to load request." });
   }
 });
 
-// ─── Auth-2.0 Admin: Approve request ────────────────────────────────────────
+// ─── Admin: Approve ────────────────────────────────────────────────────────
 app.post("/api/auth2/admin/approve/:requestId", async (req, res) => {
   try {
     const auth = await requireAdmin(req, res);
@@ -487,17 +675,16 @@ app.post("/api/auth2/admin/approve/:requestId", async (req, res) => {
     });
     await logReview(request.id, auth.session.user.id, "approved", req.body?.notes, request.ai_score);
 
-    // Create the Better Auth account
     await activateRequest(request.id);
 
     res.json({ ok: true, status: "approved" });
   } catch (e) {
     console.error("[auth2:admin:approve] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: "Failed to approve request." });
   }
 });
 
-// ─── Auth-2.0 Admin: Reject request ─────────────────────────────────────────
+// ─── Admin: Reject ─────────────────────────────────────────────────────────
 app.post("/api/auth2/admin/reject/:requestId", async (req, res) => {
   try {
     const auth = await requireAdmin(req, res);
@@ -515,11 +702,11 @@ app.post("/api/auth2/admin/reject/:requestId", async (req, res) => {
     res.json({ ok: true, status: "rejected" });
   } catch (e) {
     console.error("[auth2:admin:reject] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: "Failed to reject request." });
   }
 });
 
-// ─── Auth-2.0 Admin: Escalate to manual review ─────────────────────────────
+// ─── Admin: Escalate ──────────────────────────────────────────────────────
 app.post("/api/auth2/admin/escalate/:requestId", async (req, res) => {
   try {
     const auth = await requireAdmin(req, res);
@@ -536,11 +723,11 @@ app.post("/api/auth2/admin/escalate/:requestId", async (req, res) => {
     res.json({ ok: true, status: "manual_review" });
   } catch (e) {
     console.error("[auth2:admin:escalate] error:", e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: "Failed to escalate request." });
   }
 });
 
-// ─── Auth-2.0 Admin: Make user admin ────────────────────────────────────────
+// ─── Admin: Make user admin ────────────────────────────────────────────────
 app.post("/api/auth2/admin/make-admin", async (req, res) => {
   try {
     const auth = await requireAdmin(req, res);
@@ -556,13 +743,13 @@ app.post("/api/auth2/admin/make-admin", async (req, res) => {
     await supa.from("admin_users").insert({ user_id: "pending", email, role: "reviewer" });
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: "Failed to promote user." });
   }
 });
 
+// ─── Static files & SPA catch-all ──────────────────────────────────────────
 const dist = path.join(__dirname, "..", "dist");
 
-// ─── Legal site (served at /legal/*) ──────────────────────────────────────
 const legalDir = path.join(__dirname, "..", "legal");
 if (fs.existsSync(legalDir)) {
   app.use("/legal", express.static(legalDir));
