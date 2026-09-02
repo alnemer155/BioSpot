@@ -91,11 +91,11 @@ function getClientIp(req) {
   return req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
 }
 
-// ─── Better Auth handler (MUST be before body parser) ──────────────────────
-app.all("/api/auth/*", toNodeHandler(auth));
-app.all("/api/auth/*splat", toNodeHandler(auth));
-
+// ─── Body parser (must be before Better Auth handler) ──────────────────────
 app.use(express.json({ limit: "2mb" }));
+
+// ─── Better Auth handler ────────────────────────────────────────────────────
+app.all("/api/auth/*", toNodeHandler(auth));
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 async function getSessionUser(req) {
