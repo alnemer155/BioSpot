@@ -605,7 +605,8 @@ async function activateRequest(requestId, baseUrlOverride) {
   console.log("[auth2] signup response status:", signupRes.status, "body:", signupText);
   const signupData = JSON.parse(signupText);
   if (!signupRes.ok || signupData.error) {
-    throw new Error(signupData.error?.message || signupData.message || `Signup failed (${signupRes.status})`);
+    const errMsg = signupData.error?.message || signupData.message || `Signup failed (${signupRes.status}): ${signupText.slice(0, 500)}`;
+    throw new Error(errMsg);
   }
   const userId = signupData.user?.id;
   if (!userId) throw new Error("No user ID in signup response");
