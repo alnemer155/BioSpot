@@ -465,7 +465,7 @@ app.post("/api/auth2/submit", async (req, res) => {
     res.json({ requestId: request.id, tempPassword, status: "pending" });
   } catch (e) {
     console.error("[auth2:submit] error:", e.message, e.stack);
-    res.status(500).json({ error: sanitizeError(e) });
+    res.status(500).json({ error: sanitizeError(e), debug: e.message });
   }
 });
 
