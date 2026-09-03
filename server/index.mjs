@@ -382,19 +382,6 @@ app.get("/api/stats", async (req, res) => {
 // ─── Health ─────────────────────────────────────────────────────────────────
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
-// ─── Temporary diagnostics ─────────────────────────────────────────────────
-app.get("/api/debug/supabase", async (_req, res) => {
-  try {
-    const supa = await makeSupa(null, null, true);
-    const { data, error } = await supa.from("account_requests").select("id", { count: "exact", head: true });
-    if (error) throw error;
-    res.json({ ok: true, account_requests_exists: true, count: data?.count ?? null });
-  } catch (e) {
-    console.error("[debug/supabase] error:", e.message);
-    res.status(500).json({ ok: false, error: e.message, code: e.code, hint: e.hint });
-  }
-});
-
 // ═══════════════════════════════════════════════════════════════════════════
 // AUTH-2.0 ROUTES
 // ═══════════════════════════════════════════════════════════════════════════
@@ -463,7 +450,7 @@ app.post("/api/auth2/submit", async (req, res) => {
     res.json({ requestId: request.id, tempPassword, status: "pending" });
   } catch (e) {
     console.error("[auth2:submit] error:", e.message, e.stack);
-    res.status(500).json({ error: sanitizeError(e), debug: e.message });
+    res.status(500).json({ error: sanitizeError(e) });
   }
 });
 
