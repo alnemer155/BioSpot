@@ -587,20 +587,23 @@ async function activateRequest(requestId, baseUrlOverride) {
   const port = process.env.PORT || 8787;
   const baseUrl = baseUrlOverride || process.env.BETTER_AUTH_BASE_URL || `http://localhost:${port}`;
   console.log(`[auth2] Creating user: email=${request.email}, pw_len=${request.temp_password?.length}, baseUrl=${baseUrl}`);
+  const signupBody = JSON.stringify({
+    email: request.email,
+    password: request.temp_password,
+    name: request.display_name,
+  });
+  console.log("[auth2] signup request:", baseUrl, signupBody);
   const signupRes = await fetch(`${baseUrl}/api/auth/sign-up/email`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Origin": baseUrl,
     },
-    body: JSON.stringify({
-      email: request.email,
-      password: request.temp_password,
-      name: request.display_name,
-    }),
+    body: signupBody,
   });
-  const signupData = await signupRes.json().catch(() => ({}));
-  console.log("[auth2] signup response:", JSON.stringify(signupData));
+  const signupText = await signupRes.text();
+  console.log("[auth2] signup response status:", signupRes.status, "body:", signupText);
+  const signupData = JSON.parse(signupText);
   if (!signupRes.ok || signupData.error) {
     throw new Error(signupData.error?.message || signupData.message || `Signup failed (${signupRes.status})`);
   }
