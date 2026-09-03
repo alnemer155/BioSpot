@@ -419,7 +419,9 @@ app.post("/api/auth2/submit", async (req, res) => {
     if (!(existingAdmins?.length > 0)) {
       console.log(`[auth2] Bootstrapping first admin for request ${request.id}`);
       await updateRequestStatus(request.id, "approved", { reviewerNotes: "Auto-approved: first user on platform." });
-      await activateRequest(request.id);
+      const proto = req.headers["x-forwarded-proto"] || (req.connection?.encrypted ? "https" : "http");
+      const baseUrl = process.env.BETTER_AUTH_BASE_URL || `${proto}://${req.headers.host}`;
+      await activateRequest(request.id, baseUrl);
       return res.json({ requestId: request.id, tempPassword, status: "approved", bootstrap: true });
     }
 
@@ -529,8 +531,8 @@ app.post("/api/auth2/change-password", async (req, res) => {
 
     console.log("[change-pw] email:", session.user.email, "ar:", ar, "err:", arErr);
 
-    const port = process.env.PORT || 8787;
-    const baseUrl = process.env.BETTER_AUTH_BASE_URL || `http://localhost:${port}`;
+    const proto = req.headers["x-forwarded-proto"] || (req.connection?.encrypted ? "https" : "http");
+    const baseUrl = process.env.BETTER_AUTH_BASE_URL || `${proto}://${req.headers.host}`;
 
     // If we couldn't find the temp_password, try without currentPassword
     // (this means the user was created via admin approval and we need to handle it differently)
@@ -567,7 +569,7 @@ app.post("/api/auth2/change-password", async (req, res) => {
 });
 
 // ─── Helper: Activate approved request ──────────────────────────────────────
-async function activateRequest(requestId) {
+async function activateRequest(requestId, baseUrlOverride) {
   const request = await getRequestById(requestId);
   if (!request || request.status !== "approved") {
     console.log(`[auth2] activateRequest: skipped — status=${request?.status}`);
@@ -583,8 +585,8 @@ async function activateRequest(requestId) {
   }
 
   const port = process.env.PORT || 8787;
-  const baseUrl = process.env.BETTER_AUTH_BASE_URL || `http://localhost:${port}`;
-  console.log(`[auth2] Creating user: email=${request.email}, pw_len=${request.temp_password?.length}`);
+  const baseUrl = baseUrlOverride || process.env.BETTER_AUTH_BASE_URL || `http://localhost:${port}`;
+  console.log(`[auth2] Creating user: email=${request.email}, pw_len=${request.temp_password?.length}, baseUrl=${baseUrl}`);
   const signupRes = await fetch(`${baseUrl}/api/auth/sign-up/email`, {
     method: "POST",
     headers: {
@@ -713,7 +715,9 @@ app.post("/api/auth2/admin/approve/:requestId", async (req, res) => {
     });
     await logReview(request.id, auth.session.user.id, "approved", req.body?.notes, request.ai_score);
 
-    await activateRequest(request.id);
+    const proto = req.headers["x-forwarded-proto"] || (req.connection?.encrypted ? "https" : "http");
+    const baseUrl = process.env.BETTER_AUTH_BASE_URL || `${proto}://${req.headers.host}`;
+    await activateRequest(request.id, baseUrl);
 
     res.json({ ok: true, status: "approved" });
   } catch (e) {
