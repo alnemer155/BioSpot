@@ -408,6 +408,21 @@ app.post("/api/auth2/submit", async (req, res) => {
     const tempPassword = crypto.randomBytes(12).toString("base64url");
     const request = await createAccountRequest(data, tempPassword);
 
+    // Bootstrap: if there are no admins yet, auto-approve the first request
+    // so the platform isn't stuck waiting for a non-existent admin.
+    const supaAdminCheck = await makeSupa(null, null, true);
+    const { data: existingAdmins } = await supaAdminCheck
+      .from("admin_users")
+      .select("id")
+      .neq("email", "bootstrap")
+      .limit(1);
+    if (!(existingAdmins?.length > 0)) {
+      console.log(`[auth2] Bootstrapping first admin for request ${request.id}`);
+      await updateRequestStatus(request.id, "approved", { reviewerNotes: "Auto-approved: first user on platform." });
+      await activateRequest(request.id);
+      return res.json({ requestId: request.id, tempPassword, status: "approved", bootstrap: true });
+    }
+
     // Start Gemini analysis in background (don't block response)
     (async () => {
       try {
