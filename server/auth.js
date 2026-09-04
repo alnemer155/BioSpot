@@ -67,18 +67,31 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS "verification_identifier_idx" ON "verification" ("identifier");
 `);
 
+const isProd = process.env.NODE_ENV === "production";
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET || "linktroo-better-auth-secret-change-me",
   database: db,
   emailAndPassword: {
     enabled: true,
   },
-  baseURL: process.env.BETTER_AUTH_BASE_URL || "http://localhost:8787",
+  baseURL: process.env.BETTER_AUTH_BASE_URL || (isProd ? "https://api.linktroo.cc" : "http://localhost:8787"),
   basePath: "/api/auth",
   advanced: {
     database: {
       generateId: () => crypto.randomUUID(),
     },
+    crossSubDomainCookies: {
+      enabled: isProd,
+      domain: isProd ? ".linktroo.cc" : undefined,
+    },
+    ...(isProd
+      ? {
+          defaultCookieAttributes: {
+            sameSite: "none",
+            secure: true,
+          },
+        }
+      : {}),
   },
   plugins: [
     dash({
@@ -88,12 +101,16 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 30,
     updateAge: 60 * 60 * 24,
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5,
+    },
   },
   trustedOrigins: [
     "http://localhost:5173",
     "http://localhost:8787",
     "https://linktroo.cc",
     "https://www.linktroo.cc",
-    "https://biospot-production.up.railway.app",
+    "https://api.linktroo.cc",
   ],
 });

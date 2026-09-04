@@ -47,6 +47,7 @@ const ALLOWED_ORIGINS = [
   "http://localhost:8787",
   "https://linktroo.cc",
   "https://www.linktroo.cc",
+  "https://api.linktroo.cc",
 ];
 
 app.use(
@@ -91,11 +92,10 @@ function getClientIp(req) {
   return req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
 }
 
-// ─── Body parser (must be before Better Auth handler) ──────────────────────
-app.use(express.json({ limit: "2mb" }));
-
-// ─── Better Auth handler ────────────────────────────────────────────────────
+// ─── Better Auth handler (MUST be before body parser — needs raw body) ───────
 app.all("/api/auth/*", toNodeHandler(auth));
+
+app.use(express.json({ limit: "2mb" }));
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 async function getSessionUser(req) {
@@ -121,6 +121,11 @@ async function requireAuth(req, res) {
 
 function sanitizeError(e) {
   const msg = e?.message || "Internal server error";
+  // In development, expose real error for debugging
+  if (process.env.NODE_ENV !== "production") {
+    console.error("[sanitizeError] original:", msg);
+    return msg;
+  }
   if (msg.includes("duplicate") || msg.includes("UNIQUE")) return "A record already exists.";
   if (msg.includes("foreign key")) return "Referenced record not found.";
   if (msg.includes("permission") || msg.includes("RLS")) return "Permission denied.";
@@ -467,7 +472,9 @@ app.post("/api/auth2/submit", async (req, res) => {
     res.json({ requestId: request.id, tempPassword, status: "pending" });
   } catch (e) {
     console.error("[auth2:submit] error:", e.message, e.stack);
-    res.status(500).json({ error: sanitizeError(e), debug: e.message });
+    const payload = { error: sanitizeError(e) };
+    if (process.env.NODE_ENV !== "production") payload.debug = e.message;
+    res.status(500).json(payload);
   }
 });
 

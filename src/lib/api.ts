@@ -1,9 +1,23 @@
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
+function buildUrl(path: string) {
+  if (!API_BASE) return path;
+  // Avoid duplicating // and handle trailing slash
+  return `${API_BASE.replace(/\/$/, "")}${path}`;
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const res = await fetch(url, { credentials: "include", headers, ...options });
+  const fullUrl = buildUrl(url);
+  // Dev-only: expose real request URL for debugging
+  if (import.meta.env.DEV) console.debug("[api] →", options?.method || "GET", fullUrl);
+  const res = await fetch(fullUrl, { credentials: "include", headers, ...options });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error || "Something went wrong.");
+    const serverError = (data as { error?: string; debug?: string }).error;
+    const debugHint = (data as { debug?: string }).debug;
+    if (import.meta.env.DEV && debugHint) console.error("[api] server debug:", debugHint);
+    throw new Error(serverError || "Something went wrong.");
   }
   return data as T;
 }
